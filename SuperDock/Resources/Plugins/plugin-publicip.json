@@ -1,0 +1,3 @@
+{ "id": "builtin.publicIP", "name": "Public IP", "symbol": "network", "category": "dev", "sizes": ["medium"],
+  "source": { "url": "https://api.ipify.org?format=json", "every": 900 },
+  "tile": { "template": "value", "label": "Public IP", "value": "$.ip" } }
