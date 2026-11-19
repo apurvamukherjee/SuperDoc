@@ -25,13 +25,11 @@ private struct NowPlayingTile: View {
     var body: some View {
         HStack(spacing: 10) {
             if let track = service.track {
-                if size == .wide { cover(for: track) }
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(track.title).font(.callout.weight(.semibold))
-                    Text(track.artist).font(.caption).foregroundStyle(.secondary)
-                }
-                .tileText()
-                .frame(maxWidth: .infinity, alignment: .leading)
+                // Cover only: the title lives in the tooltip and VoiceOver label, which keeps the tile clean.
+                cover(for: track)
+                    .help("\(track.title) — \(track.artist)")
+                    .accessibilityLabel("\(track.title), \(track.artist)")
+                Spacer(minLength: 0)
             } else {
                 Text("Nothing playing").font(.caption).foregroundStyle(.secondary).frame(maxWidth: .infinity)
             }
@@ -51,10 +49,8 @@ private struct NowPlayingTile: View {
                 Image(nsImage: NSWorkspace.shared.icon(forFile: url.path)).resizable().scaledToFit()
             }
         }
-        .frame(maxWidth: 48, maxHeight: 48)
         .aspectRatio(1, contentMode: .fit)
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .accessibilityHidden(true)
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 
     private func control(_ symbol: String, _ label: LocalizedStringKey, _ command: NowPlayingService.Command) -> some View {
