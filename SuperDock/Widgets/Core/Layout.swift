@@ -48,11 +48,12 @@ struct Profile: Codable, Identifiable, Equatable {
 
 /// Which kind of display the bar is on. Each kind remembers its own active profile,
 /// so the laptop screen and an external monitor can show different bars and switch automatically.
-enum DisplayKind: String, Codable {
+enum DisplayKind: String, Codable, CodingKeyRepresentable {
     case builtIn, external
 }
 
-/// What's saved in layout.json.
+/// What's saved in layout.json. `activeProfile` is an object keyed by display kind (CodingKeyRepresentable),
+/// e.g. `{"builtIn": "<profile id>"}`, so the file stays readable and hand-editable.
 struct LayoutFile: Codable, Equatable {
     var profiles: [Profile]
     var activeProfile: [DisplayKind: Profile.ID] = [:]
