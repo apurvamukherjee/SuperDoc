@@ -4,7 +4,7 @@ import os
 private let log = Logger(subsystem: "dev.superdock.SuperDock", category: "widgets")
 
 enum WidgetCategory: String, CaseIterable {
-    case ai, time, system, weather, media, controls, files
+    case ai, time, system, weather, media, controls, files, productivity, dev, finance, news, fun, community
 
     var title: String {
         switch self {
@@ -15,6 +15,12 @@ enum WidgetCategory: String, CaseIterable {
         case .media: String(localized: "Media")
         case .controls: String(localized: "Controls")
         case .files: String(localized: "Files & Apps")
+        case .productivity: String(localized: "Productivity")
+        case .dev: String(localized: "Developer")
+        case .finance: String(localized: "Finance")
+        case .news: String(localized: "News & Reading")
+        case .fun: String(localized: "Fun")
+        case .community: String(localized: "Community Plugins")
         }
     }
 }
