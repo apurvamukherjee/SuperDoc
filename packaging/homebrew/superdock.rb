@@ -1,8 +1,8 @@
 # Homebrew cask for SuperDock. scripts/release.sh fills in version and sha256; copy this file into the
 # apurvamukherjee/homebrew-superdock tap repo (Casks/superdock.rb) after each release. See docs/releasing.md.
 cask "superdock" do
-  version "0.1.1"
-  sha256 "1edf7b0481d93dac8e08105022de293d8f1aa994f294783721f522d25797f474"
+  version "0.1.2"
+  sha256 "e0b87feae31613bf62b1fd3070de9d2864c1309ea42a1ab59394bc3f6df53939"
 
   url "https://github.com/apurvamukherjee/SuperDoc/releases/download/v#{version}/SuperDock-#{version}.dmg"
   name "SuperDock"
