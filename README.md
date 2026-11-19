@@ -24,7 +24,12 @@ The `.xcodeproj` is generated and not checked in. Edit `project.yml` for targets
 - [x] Phase 5: clipboard & notch (history ⌥⌘V, type filters, pinned slots ⌃⌥⌘1–9, Copy Peek, notch shelf with full/icon styles)
 - [x] Phase 6: system, time, weather, media, Quick Actions, Control Center widgets (27 widgets total; idle CPU 0.68% with 10 widgets, 101 MB)
 - [x] Phase 7: profiles (per display, ⌃⌥⌘P), themes, Folder/Smart Stack and File Shelf widgets, Launchpad (⌃⌥⌘L) with custom icons, Dock replacement mode, live wallpaper
-- [ ] Phase 8: plugin API + remaining widgets
+- [x] Phase 8: declarative JSON plugin API ([docs/plugins.md](docs/plugins.md)), 15 built-in plugins, community gallery, 12 native productivity/dev/fun widgets (57 widgets total)
+- [ ] Phase 9: release (signing, notarization, DMG, Sparkle appcast, Homebrew cask)
+
+### Plugins
+
+A plugin is a JSON file that names an `https` URL and which values to show from the response, using a value, text, list or gauge template. Plugins can't run code. The built-in news, finance and fun widgets are plugins themselves (`SuperDock/Resources/Plugins/`). The community gallery lives in [`gallery/`](gallery/) and installs from Settings → Plugins.
 
 ### Dock replacement
 
