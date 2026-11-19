@@ -67,6 +67,8 @@ targets:
       - SuperDock/Services/WeatherService.swift
       - SuperDock/Widgets/Time/TimeMath.swift
       - SuperDock/Dock/DockReplacement.swift
+      - SuperDock/Plugins/PluginManifest.swift
+      - SuperDock/Widgets/Dev/DevParsing.swift
       - path: SuperDockTests/Fixtures
         buildPhase: none
     settings:
