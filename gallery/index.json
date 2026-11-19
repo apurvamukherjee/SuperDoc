@@ -1,0 +1,4 @@
+[
+  { "id": "community.githubOpenIssues", "name": "GitHub Open Issues", "description": "Open issue count for any public repository.", "author": "SuperDock", "file": "plugins/github-issues.json" },
+  { "id": "community.hnShowHN", "name": "Show HN", "description": "The newest Show HN posts.", "author": "SuperDock", "file": "plugins/hn-best.json" }
+]
