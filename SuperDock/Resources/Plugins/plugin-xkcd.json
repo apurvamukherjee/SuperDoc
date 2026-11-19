@@ -1,0 +1,4 @@
+{ "id": "builtin.xkcd", "name": "xkcd", "symbol": "photo", "category": "fun", "sizes": ["medium"],
+  "description": "Title of the latest xkcd comic.",
+  "source": { "url": "https://xkcd.com/info.0.json", "every": 3600 },
+  "tile": { "template": "value", "label": "xkcd", "value": "$.safe_title", "subtitle": "$.num", "open": "https://xkcd.com" } }
