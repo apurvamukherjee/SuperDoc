@@ -1,0 +1,3 @@
+{ "id": "builtin.randomfact", "name": "Random Fact", "symbol": "lightbulb", "category": "fun", "sizes": ["medium", "wide"],
+  "source": { "url": "https://uselessfacts.jsph.pl/api/v2/facts/random?language=en", "every": 3600 },
+  "tile": { "template": "text", "value": "$.text" } }
