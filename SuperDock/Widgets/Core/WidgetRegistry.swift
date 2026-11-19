@@ -29,7 +29,10 @@ enum WidgetRegistry {
             QuickActionsWidget.self,
             VolumeWidget.self,
             BrightnessWidget.self,
-            WiFiWidget.self
+            WiFiWidget.self,
+            StackWidget.self,
+            FileShelfWidget.self,
+            LaunchpadWidget.self
         ]
     }
 
