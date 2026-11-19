@@ -50,6 +50,8 @@ struct WidgetHost: View {
         .padding(spacing)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .tint(Color(hex: accent) ?? .accentColor)
+        // The panel can become key (for text fields), which would otherwise draw focus rings around tile buttons.
+        .focusEffectDisabled()
     }
 
     private func frame(for size: TileSize) -> CGSize {
