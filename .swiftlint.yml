@@ -1,0 +1,10 @@
+included:
+  - SuperDock
+  - SuperDockTests
+line_length: 140
+identifier_name:
+  excluded: [ai, id, uv]
+nesting:
+  type_level: 2
+type_name:
+  excluded: [AX]
