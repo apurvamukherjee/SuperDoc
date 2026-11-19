@@ -1,0 +1,5 @@
+{ "id": "builtin.iss", "name": "ISS Tracker", "symbol": "globe.europe.africa", "category": "fun", "sizes": ["medium"],
+  "description": "Where the International Space Station is right now.",
+  "source": { "url": "https://api.wheretheiss.at/v1/satellites/25544", "every": 60 },
+  "tile": { "template": "value", "label": "ISS lat", "value": "$.latitude", "subtitle": "$.longitude", "format": "number",
+            "open": "https://wheretheiss.at" } }
