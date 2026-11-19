@@ -44,7 +44,7 @@ targets:
         INFOPLIST_KEY_CFBundleDisplayName: SuperDock
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ENABLE_HARDENED_RUNTIME: YES
-        INFOPLIST_KEY_NSAppleEventsUsageDescription: "Quick Actions use this to empty the Trash (Finder) and switch Dark Mode (System Events)."
+        INFOPLIST_KEY_NSAppleEventsUsageDescription: "Quick Actions use this to empty the Trash (Finder) and switch Dark Mode (System Events). Now Playing uses it to show cover art from Music and Spotify."
         SWIFT_EMIT_LOC_STRINGS: YES
         # SwiftLint must read sources outside the script sandbox.
         ENABLE_USER_SCRIPT_SANDBOXING: NO

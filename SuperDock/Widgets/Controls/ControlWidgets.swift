@@ -23,22 +23,19 @@ private struct NowPlayingTile: View {
     private let service = NowPlayingService.shared
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 10) {
             if let track = service.track {
-                if size == .wide, let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: track.bundleID) {
-                    Image(nsImage: NSWorkspace.shared.icon(forFile: url.path)).resizable().scaledToFit().frame(width: 32)
-                        .accessibilityHidden(true)
-                }
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(track.title).font(.caption.weight(.semibold))
-                    Text(track.artist).font(.caption2).foregroundStyle(.secondary)
+                if size == .wide { cover(for: track) }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(track.title).font(.callout.weight(.semibold))
+                    Text(track.artist).font(.caption).foregroundStyle(.secondary)
                 }
                 .tileText()
                 .frame(maxWidth: .infinity, alignment: .leading)
             } else {
                 Text("Nothing playing").font(.caption).foregroundStyle(.secondary).frame(maxWidth: .infinity)
             }
-            HStack(spacing: 6) {
+            HStack(spacing: 4) {
                 if size == .wide { control("backward.fill", "Previous", .previous) }
                 control(service.track?.isPlaying == true ? "pause.fill" : "play.fill", "Play or pause", .playPause)
                 control("forward.fill", "Next", .next)
@@ -46,10 +43,26 @@ private struct NowPlayingTile: View {
         }
     }
 
+    private func cover(for track: NowPlayingService.Track) -> some View {
+        Group {
+            if let artwork = service.artwork {
+                Image(nsImage: artwork).resizable().scaledToFill()
+            } else if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: track.bundleID) {
+                Image(nsImage: NSWorkspace.shared.icon(forFile: url.path)).resizable().scaledToFit()
+            }
+        }
+        .frame(maxWidth: 48, maxHeight: 48)
+        .aspectRatio(1, contentMode: .fit)
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .accessibilityHidden(true)
+    }
+
     private func control(_ symbol: String, _ label: LocalizedStringKey, _ command: NowPlayingService.Command) -> some View {
-        Button { service.send(command) } label: { Image(systemName: symbol).font(.callout) }
-            .buttonStyle(.plain)
-            .accessibilityLabel(label)
+        Button { service.send(command) } label: {
+            Image(systemName: symbol).font(.title3).frame(width: 30, height: 30).contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(label)
     }
 }
 

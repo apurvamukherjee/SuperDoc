@@ -1,5 +1,8 @@
 import AppKit
 import Observation
+import os
+
+private let log = Logger(subsystem: "dev.superdock.SuperDock", category: "now-playing")
 
 // ponytail: no state until the player next changes track or play/pause; an AppleScript query on launch would need
 // Automation permission per player.
@@ -34,6 +37,8 @@ final class NowPlayingService {
     }
 
     private(set) var track: Track?
+    /// Cover art for `track`, fetched from the player over Apple Events (one Automation prompt per player).
+    private(set) var artwork: NSImage?
 
     private static let sources = [
         ("com.apple.Music.playerInfo", "com.apple.Music"),
@@ -47,9 +52,51 @@ final class NowPlayingService {
                 forName: .init(name), object: nil, queue: .main
             ) { [weak self] note in
                 let track = Self.track(from: note.userInfo ?? [:], bundleID: bundleID)
-                MainActor.assumeIsolated { self?.track = track }
+                MainActor.assumeIsolated { self?.update(track) }
             })
         }
+    }
+
+    private func update(_ new: Track?) {
+        let trackChanged = new?.title != track?.title || new?.album != track?.album || new?.bundleID != track?.bundleID
+        track = new
+        guard trackChanged else { return }
+        artwork = nil
+        guard let new else { return }
+        Task { [weak self] in
+            let image = await Self.fetchArtwork(bundleID: new.bundleID)
+            // Skip stale results if the track changed again while we were fetching.
+            guard let self, self.track?.title == new.title, self.track?.bundleID == new.bundleID else { return }
+            self.artwork = image
+        }
+    }
+
+    /// Music hands back the image bytes; Spotify only gives an https URL to its CDN.
+    private static func fetchArtwork(bundleID: String) async -> NSImage? {
+        switch bundleID {
+        case "com.apple.Music":
+            let result = runScript("tell application \"Music\" to get raw data of artwork 1 of current track")
+            return result.flatMap { NSImage(data: $0.data) }
+        case "com.spotify.client":
+            guard let link = runScript("tell application \"Spotify\" to get artwork url of current track")?.stringValue,
+                  let url = URL(string: link), url.scheme == "https" else { return nil }
+            do {
+                return NSImage(data: try await URLSession.shared.data(from: url).0)
+            } catch {
+                log.error("Spotify artwork download failed: \(error)")
+                return nil
+            }
+        default:
+            return nil
+        }
+    }
+
+    private static func runScript(_ source: String) -> NSAppleEventDescriptor? {
+        var error: NSDictionary?
+        let result = NSAppleScript(source: source)?.executeAndReturnError(&error)
+        // Tracks without artwork and a declined Automation prompt both land here; the tile falls back to the app icon.
+        if let error { log.info("Artwork script failed: \(error)") }
+        return result
     }
 
     /// Music and Spotify use the same keys. "Stopped" (or quitting) clears the track.
