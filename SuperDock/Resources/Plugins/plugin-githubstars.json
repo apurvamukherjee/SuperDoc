@@ -1,0 +1,4 @@
+{ "id": "builtin.githubStars", "name": "GitHub Stars", "symbol": "star", "category": "dev", "sizes": ["compact", "medium"],
+  "source": { "url": "https://api.github.com/repos/{repo}", "every": 1800 },
+  "settings": [{ "key": "repo", "label": "Repository (owner/name)", "default": "swiftlang/swift" }],
+  "tile": { "template": "value", "label": "★ {repo}", "value": "$.stargazers_count", "format": "number", "open": "https://github.com/{repo}" } }
