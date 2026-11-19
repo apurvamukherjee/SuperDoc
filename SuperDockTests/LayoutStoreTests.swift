@@ -111,3 +111,10 @@ struct ProfileTests {
         #expect(store.activeProfile.id == first)
     }
 }
+
+@Test func activeProfilesAreSavedAsAReadableObject() throws {
+    var file = LayoutFile(profiles: [Profile(name: "A", tiles: [])])
+    file.activeProfile[.external] = file.profiles[0].id
+    let json = try JSONSerialization.jsonObject(with: JSONEncoder().encode(file)) as? [String: Any]
+    #expect((json?["activeProfile"] as? [String: String])?["external"] == file.profiles[0].id.uuidString)
+}
