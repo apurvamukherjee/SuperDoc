@@ -1,0 +1,4 @@
+{ "id": "builtin.ethereum", "name": "Ethereum", "symbol": "e.circle", "category": "finance", "sizes": ["compact", "medium"],
+  "source": { "url": "https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies={currency}", "every": 300 },
+  "settings": [{ "key": "currency", "label": "Currency (e.g. usd, eur, inr)", "default": "usd" }],
+  "tile": { "template": "value", "label": "ETH", "value": "$.ethereum.{currency}", "format": "number", "open": "https://www.coingecko.com/en/coins/ethereum" } }
