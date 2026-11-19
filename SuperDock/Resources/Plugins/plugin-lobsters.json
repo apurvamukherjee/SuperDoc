@@ -1,0 +1,4 @@
+{ "id": "builtin.lobsters", "name": "Lobsters", "symbol": "newspaper", "category": "news", "sizes": ["wide", "large"],
+  "description": "Hottest stories on lobste.rs.",
+  "source": { "url": "https://lobste.rs/hottest.json", "every": 900 },
+  "tile": { "template": "list", "items": "$[*].title", "links": "$[*].url", "open": "https://lobste.rs" } }
