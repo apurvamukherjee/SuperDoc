@@ -1,0 +1,6 @@
+{ "id": "builtin.crypto", "name": "Crypto Price", "symbol": "chart.line.uptrend.xyaxis", "category": "finance", "sizes": ["compact", "medium"],
+  "description": "Any coin by its CoinGecko id (solana, dogecoin, …).",
+  "source": { "url": "https://api.coingecko.com/api/v3/simple/price?ids={coin}&vs_currencies={currency}", "every": 300 },
+  "settings": [{ "key": "coin", "label": "CoinGecko coin id", "default": "solana" },
+               { "key": "currency", "label": "Currency", "default": "usd" }],
+  "tile": { "template": "value", "label": "{coin}", "value": "$.{coin}.{currency}", "format": "number", "open": "https://www.coingecko.com/en/coins/{coin}" } }
