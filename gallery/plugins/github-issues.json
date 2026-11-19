@@ -1,0 +1,5 @@
+{ "id": "community.githubOpenIssues", "name": "GitHub Open Issues", "author": "SuperDock", "symbol": "exclamationmark.circle", "category": "dev",
+  "sizes": ["compact", "medium"], "description": "Open issue count for a repository.",
+  "source": { "url": "https://api.github.com/repos/{repo}", "every": 1800 },
+  "settings": [{ "key": "repo", "label": "Repository (owner/name)", "default": "swiftlang/swift" }],
+  "tile": { "template": "value", "label": "Issues", "value": "$.open_issues_count", "format": "number", "open": "https://github.com/{repo}/issues" } }
