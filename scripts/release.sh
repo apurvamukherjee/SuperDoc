@@ -3,6 +3,8 @@
 #
 #   scripts/release.sh 0.2.0              # build + DMG in build/dist (ad-hoc signed unless SIGNING_IDENTITY is set)
 #   scripts/release.sh 0.2.0 --publish    # also create the GitHub release (requires Developer ID + notarization)
+#   scripts/release.sh 0.2.0 --publish-unsigned   # GitHub release of an ad-hoc build; users must allow it once
+#                                                 # in System Settings (the notes explain how)
 #
 # Environment:
 #   SIGNING_IDENTITY  "Developer ID Application: Name (TEAMID)". Default "-" (ad-hoc, for local testing only).
@@ -23,6 +25,7 @@ DIST="$ROOT/build/dist"
 cd "$ROOT"
 
 if [[ "$PUBLISH" == "--publish" && ( "$IDENTITY" == "-" || -z "$NOTARY" ) ]]; then
+  echo "hint: for a deliberately unsigned release use --publish-unsigned" >&2
   echo "error: publishing needs SIGNING_IDENTITY (Developer ID) and NOTARY_PROFILE; unsigned builds would be blocked by Gatekeeper" >&2
   exit 1
 fi
@@ -74,11 +77,16 @@ fi
 
 echo "▸ Making DMG"
 DMG="$DIST/SuperDock-$VERSION.dmg"
-STAGING="$(mktemp -d)"
-ditto "$APP" "$STAGING/SuperDock.app"
-ln -s /Applications "$STAGING/Applications"
-hdiutil create -quiet -volname "SuperDock" -srcfolder "$STAGING" -ov -format UDZO "$DMG"
-rm -rf "$STAGING"
+ART="$ROOT/build/dmgart"
+mkdir -p "$ART"
+swift packaging/dmg/make-background.swift "$ART" >/dev/null
+tiffutil -cathidpicheck "$ART/background.png" "$ART/background@2x.png" -out "$ART/background.tiff" >/dev/null
+# dmgbuild (a build-time Python tool, kept in build/) writes the window layout and background without scripting Finder.
+DMGBUILD="$ROOT/build/dmgenv/bin/dmgbuild"
+if [[ ! -x "$DMGBUILD" ]]; then
+  python3 -m venv "$ROOT/build/dmgenv" && "$ROOT/build/dmgenv/bin/pip" install -q dmgbuild
+fi
+"$DMGBUILD" -s packaging/dmg/settings.py -D app="$APP" -D background="$ART/background.tiff" "SuperDock" "$DMG" >/dev/null
 if [[ "$IDENTITY" != "-" ]]; then
   codesign --force --timestamp --sign "$IDENTITY" "$DMG"
   [[ -n "$NOTARY" ]] && notarize "$DMG" && xcrun stapler staple "$DMG"
@@ -94,11 +102,16 @@ if [[ -n "$SPARKLE_KEY" ]]; then
     --download-url-prefix "https://github.com/$REPO/releases/download/v$VERSION/" "$DIST"
 fi
 
-if [[ "$PUBLISH" == "--publish" ]]; then
+if [[ "$PUBLISH" == "--publish" || "$PUBLISH" == "--publish-unsigned" ]]; then
   echo "▸ Publishing GitHub release v$VERSION"
   ASSETS=("$DMG")
   [[ -f "$DIST/appcast.xml" ]] && ASSETS+=("$DIST/appcast.xml")
-  gh release create "v$VERSION" "${ASSETS[@]}" --repo "$REPO" --title "SuperDock $VERSION" --generate-notes
+  NOTES="$DIST/notes.md"
+  sed "s/{VERSION}/$VERSION/g" packaging/release-notes.md > "$NOTES"
+  if [[ "$IDENTITY" == "-" ]]; then
+    sed "s/{VERSION}/$VERSION/g" packaging/release-notes-unsigned.md >> "$NOTES"
+  fi
+  gh release create "v$VERSION" "${ASSETS[@]}" --repo "$REPO" --title "SuperDock $VERSION" --notes-file "$NOTES"
 fi
 
 echo "✓ $DMG"
