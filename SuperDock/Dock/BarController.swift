@@ -46,6 +46,7 @@ final class BarController {
             forName: UserDefaults.didChangeNotification, object: nil, queue: .main
         ) { [weak self] _ in
             MainActor.assumeIsolated {
+                self?.panel.applyAppearance()
                 self?.layout()
                 self?.updateBuddy()
             }
@@ -53,6 +54,8 @@ final class BarController {
         updateBuddy()
         observeLockAndSleep()
         tracker.start()
+        // The tracker only reports changes; in replacement mode the Dock starts (and stays) hidden, so lay out once now.
+        layout()
     }
 
     /// Nothing on the bar should tick while nobody can see it (SUPERDOCK.md §10).
@@ -88,11 +91,19 @@ final class BarController {
     }
 
     private func layout() {
+        if DockReplacement.isEnabled { return layoutAsDock() }
+        if bar.showsAppStrip { bar.showsAppStrip = false }
         guard let dock = tracker.dock else {
             panel.orderOut(nil)
             updateActivity()
             return
         }
+        // Built-in and external displays each have their own active profile.
+        let screen = NSScreen.screens.first { $0.visibleFrame == dock.visibleFrame }
+        let displayID = screen?.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID
+        let kind: DisplayKind = displayID.map { CGDisplayIsBuiltin($0) != 0 } ?? true ? .builtIn : .external
+        if store.display != kind { store.display = kind }
+
         let isVertical = BarPlacement.orientation(of: dock.frame, in: dock.visibleFrame) != .bottom
         let thickness = isVertical ? dock.frame.width : dock.frame.height
         // Only assign on change: layout runs at 60 Hz while the Dock animates, and each assignment re-renders the tiles.
@@ -105,6 +116,32 @@ final class BarController {
             length: BarPlacement.barLength(columns: store.totalColumns, thickness: thickness)
         )
         panel.setFrame(frame, display: true)
+        if !panel.isVisible { panel.orderFrontRegardless() }
+        updateActivity()
+    }
+
+    // ponytail: bottom of the main screen only; side positions and multi-display placement come later if wanted.
+    /// Replacement mode: the system Dock is hidden, so the bar takes its place, centred at the bottom of the main
+    /// screen with the app strip first.
+    private func layoutAsDock() {
+        guard let screen = NSScreen.screens.first else { return }
+        AppStrip.shared.onChange = { [weak self] in self?.layout() }
+        let displayID = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID
+        let kind: DisplayKind = displayID.map { CGDisplayIsBuiltin($0) != 0 } ?? true ? .builtIn : .external
+        if store.display != kind { store.display = kind }
+
+        // Icons match the size the user chose for the system Dock.
+        let iconSize = (SystemDockPrefs().value("tilesize") as? Double).map { CGFloat($0) } ?? 48
+        let thickness = iconSize + 2 * BarPlacement.tileSpacing
+        if bar.isVertical { bar.isVertical = false }
+        if bar.thickness != thickness { bar.thickness = thickness }
+        if !bar.showsAppStrip { bar.showsAppStrip = true }
+
+        let separator: CGFloat = 1 + BarPlacement.tileSpacing
+        let columns = store.totalColumns + AppStrip.shared.items.count + 1   // + Trash
+        let length = BarPlacement.barLength(columns: columns, thickness: thickness) + separator
+        panel.setFrame(NSRect(x: screen.frame.midX - length / 2, y: screen.frame.minY + 4, width: length, height: thickness),
+                       display: true)
         if !panel.isVisible { panel.orderFrontRegardless() }
         updateActivity()
     }
