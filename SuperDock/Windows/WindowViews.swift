@@ -80,7 +80,7 @@ struct WindowCard: View {
             Image(decorative: image, scale: 2).resizable().scaledToFit()
                 .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
         } else {
-            Image(nsImage: NSRunningApplication(processIdentifier: window.pid)?.icon ?? NSImage())
+            Image(nsImage: NSRunningApplication(processIdentifier: window.pid)?.bundleURL.map(IconProvider.icon(for:)) ?? NSImage())
                 .resizable().scaledToFit().padding(thumbnailHeight / 5)
         }
     }
