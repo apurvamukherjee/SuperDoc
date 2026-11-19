@@ -1,0 +1,5 @@
+{ "id": "builtin.currencyPair", "name": "Currency Pair", "symbol": "dollarsign.arrow.circlepath", "category": "finance", "sizes": ["compact", "medium"],
+  "description": "Daily reference exchange rate (European Central Bank via Frankfurter).",
+  "source": { "url": "https://api.frankfurter.dev/v1/latest?from={from}&to={to}", "every": 3600 },
+  "settings": [{ "key": "from", "label": "From (e.g. USD)", "default": "USD" }, { "key": "to", "label": "To (e.g. EUR)", "default": "EUR" }],
+  "tile": { "template": "value", "label": "{from} → {to}", "value": "$.rates.{to}", "format": "number" } }
