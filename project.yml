@@ -1,0 +1,73 @@
+name: SuperDock
+options:
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+
+packages:
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    from: 2.6.0
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    GENERATE_INFOPLIST_FILE: YES
+    # Ad-hoc until a Developer ID team is set; TCC grants reset on every rebuild with ad-hoc signing.
+    CODE_SIGN_IDENTITY: "-"
+
+targets:
+  SuperDock:
+    type: application
+    platform: macOS
+    sources: [SuperDock]
+    dependencies:
+      - package: Sparkle
+    entitlements:
+      path: SuperDock/Resources/SuperDock.entitlements
+      properties:
+        # Hardened runtime blocks Apple Events without this; only Quick Actions use them.
+        com.apple.security.automation.apple-events: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.superdock.SuperDock
+        INFOPLIST_KEY_LSUIElement: YES
+        INFOPLIST_KEY_CFBundleDisplayName: SuperDock
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ENABLE_HARDENED_RUNTIME: YES
+        INFOPLIST_KEY_NSAppleEventsUsageDescription: "Quick Actions use this to empty the Trash (Finder) and switch Dark Mode (System Events)."
+        SWIFT_EMIT_LOC_STRINGS: YES
+        # SwiftLint must read sources outside the script sandbox.
+        ENABLE_USER_SCRIPT_SANDBOXING: NO
+    preBuildScripts:
+      - name: SwiftLint
+        basedOnDependencyAnalysis: false
+        script: |
+          export PATH="/opt/homebrew/bin:$PATH"
+          cd "$SRCROOT"
+          if command -v swiftlint >/dev/null; then swiftlint; else echo "warning: SwiftLint not installed (brew install swiftlint)"; fi
+    scheme:
+      testTargets: [SuperDockTests]
+
+  SuperDockTests:
+    type: bundle.unit-test
+    platform: macOS
+    # Pure-logic files are compiled straight into the tests, so they run without launching the app as a host.
+    sources:
+      - SuperDockTests
+      - SuperDock/Dock/BarPlacement.swift
+      - SuperDock/Widgets/Core/Layout.swift
+      - SuperDock/Services/AIData.swift
+      - SuperDock/Services/ClaudeStatusLineBridge.swift
+      - SuperDock/Windows/WindowModel.swift
+      - SuperDock/Widgets/Core/JSONFile.swift
+      - SuperDock/Clipboard/ClipboardModel.swift
+      - SuperDock/Services/WeatherService.swift
+      - SuperDock/Widgets/Time/TimeMath.swift
+      - path: SuperDockTests/Fixtures
+        buildPhase: none
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.superdock.SuperDockTests
