@@ -1,0 +1,4 @@
+{ "id": "builtin.npmDownloads", "name": "npm Downloads", "symbol": "shippingbox", "category": "dev", "sizes": ["compact", "medium"],
+  "source": { "url": "https://api.npmjs.org/downloads/point/last-week/{package}", "every": 3600 },
+  "settings": [{ "key": "package", "label": "Package", "default": "react" }],
+  "tile": { "template": "value", "label": "{package} / wk", "value": "$.downloads", "format": "number", "open": "https://www.npmjs.com/package/{package}" } }
