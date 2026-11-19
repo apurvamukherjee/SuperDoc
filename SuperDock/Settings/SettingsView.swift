@@ -2,15 +2,16 @@ import SwiftUI
 
 /// Stored so the bar's "Widget Settings…" menu can open Settings on the right tab.
 enum SettingsTab: String {
-    case placement, widgets, plugins, profiles, appearance, windows, clipboard, ai, about
+    case general, placement, widgets, plugins, profiles, appearance, windows, clipboard, ai, about
     static let storageKey = "settings.tab"
 }
 
 struct SettingsView: View {
-    @AppStorage(SettingsTab.storageKey) private var tab = SettingsTab.placement
+    @AppStorage(SettingsTab.storageKey) private var tab = SettingsTab.general
 
     var body: some View {
         TabView(selection: $tab) {
+            GeneralSettings().tabItem { Label("General", systemImage: "gearshape") }.tag(SettingsTab.general)
             PlacementSettings().tabItem { Label("Placement", systemImage: "dock.rectangle") }.tag(SettingsTab.placement)
             WidgetsSettings().tabItem { Label("Widgets", systemImage: "square.grid.2x2") }.tag(SettingsTab.widgets)
             PluginsSettings().tabItem { Label("Plugins", systemImage: "puzzlepiece.extension") }.tag(SettingsTab.plugins)
