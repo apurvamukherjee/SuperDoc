@@ -23,7 +23,12 @@ The `.xcodeproj` is generated and not checked in. Edit `project.yml` for targets
 - [x] Phase 4: windows & switching (Dock hover previews, ⌥Tab switcher, ⌃⌥1–9, frozen-app alerts)
 - [x] Phase 5: clipboard & notch (history ⌥⌘V, type filters, pinned slots ⌃⌥⌘1–9, Copy Peek, notch shelf with full/icon styles)
 - [x] Phase 6: system, time, weather, media, Quick Actions, Control Center widgets (27 widgets total; idle CPU 0.68% with 10 widgets, 101 MB)
-- [ ] Phase 7: profiles, folders, file shelf, Smart Stacks, Launchpad, themes, replacement mode, display profiles, wallpapers
+- [x] Phase 7: profiles (per display, ⌃⌥⌘P), themes, Folder/Smart Stack and File Shelf widgets, Launchpad (⌃⌥⌘L) with custom icons, Dock replacement mode, live wallpaper
+- [ ] Phase 8: plugin API + remaining widgets
+
+### Dock replacement
+
+Settings → Placement → Replace the system Dock saves your `autohide` and `autohide-delay` values to `dock-replaced.json` *before* changing anything. It then hides the Dock (auto-hide with a 1000 s delay) and shows your apps, Trash and tiles in SuperDock's bar. Your values are restored when you turn the mode off, when SuperDock quits (including on SIGTERM), and on the next launch after a crash.
 
 ### Performance
 
