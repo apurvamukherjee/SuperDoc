@@ -1,13 +1,9 @@
 import SwiftUI
-import Sparkle
 
 @main
 struct SuperDockApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
-    // Not started until Phase 9 adds SUFeedURL + SUPublicEDKey; starting without them errors on every check.
-    private let updaterController = SPUStandardUpdaterController(
-        startingUpdater: false, updaterDelegate: nil, userDriverDelegate: nil
-    )
+    private let updates = Updates.shared
 
     var body: some Scene {
         MenuBarExtra("SuperDock", image: "MenuBarIcon") {
@@ -36,6 +32,7 @@ private struct MenuContent: View {
             openSettings()
         }
         .keyboardShortcut(",")
+        CheckForUpdatesButton()
         Divider()
         Button("Quit SuperDock") { NSApp.terminate(nil) }
             .keyboardShortcut("q")
