@@ -1,0 +1,3 @@
+{ "id": "builtin.catfact", "name": "Cat Fact", "symbol": "cat", "category": "fun", "sizes": ["medium", "wide"],
+  "source": { "url": "https://catfact.ninja/fact", "every": 3600 },
+  "tile": { "template": "text", "value": "$.fact" } }
