@@ -25,7 +25,11 @@ The `.xcodeproj` is generated and not checked in. Edit `project.yml` for targets
 - [x] Phase 6: system, time, weather, media, Quick Actions, Control Center widgets (27 widgets total; idle CPU 0.68% with 10 widgets, 101 MB)
 - [x] Phase 7: profiles (per display, ⌃⌥⌘P), themes, Folder/Smart Stack and File Shelf widgets, Launchpad (⌃⌥⌘L) with custom icons, Dock replacement mode, live wallpaper
 - [x] Phase 8: declarative JSON plugin API ([docs/plugins.md](docs/plugins.md)), 15 built-in plugins, community gallery, 12 native productivity/dev/fun widgets (57 widgets total)
-- [ ] Phase 9: release (signing, notarization, DMG, Sparkle appcast, Homebrew cask)
+- [x] Phase 9: release pipeline (`scripts/release.sh`: universal build, inside-out signing, notarization, DMG, Sparkle appcast, Homebrew cask), onboarding, launch at login, settings export/import, landing page (`site/`). Signed public releases need a Developer ID; see [docs/releasing.md](docs/releasing.md).
+
+## License
+
+MIT. See [LICENSE](LICENSE).
 
 ### Plugins
 
