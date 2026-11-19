@@ -1,0 +1,4 @@
+{ "id": "builtin.bitcoin", "name": "Bitcoin", "symbol": "bitcoinsign.circle", "category": "finance", "sizes": ["compact", "medium"],
+  "source": { "url": "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies={currency}", "every": 300 },
+  "settings": [{ "key": "currency", "label": "Currency (e.g. usd, eur, inr)", "default": "usd" }],
+  "tile": { "template": "value", "label": "BTC", "value": "$.bitcoin.{currency}", "format": "number", "open": "https://www.coingecko.com/en/coins/bitcoin" } }
