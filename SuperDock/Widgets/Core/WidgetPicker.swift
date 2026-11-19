@@ -2,7 +2,7 @@ import SwiftUI
 
 /// Sheet listing every widget by category, with search.
 struct WidgetPicker: View {
-    let onPick: (any SuperWidget.Type) -> Void
+    let onPick: (WidgetDescriptor) -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var search = ""
 
@@ -15,9 +15,7 @@ struct WidgetPicker: View {
                     }
                     if !matches.isEmpty {
                         Section(category.title) {
-                            ForEach(matches.map { $0.id }, id: \.self) { id in
-                                if let widget = WidgetRegistry.widget(id) { row(widget) }
-                            }
+                            ForEach(matches) { row($0) }
                         }
                     }
                 }
@@ -30,7 +28,7 @@ struct WidgetPicker: View {
         .frame(width: 380, height: 440)
     }
 
-    private func row(_ widget: any SuperWidget.Type) -> some View {
+    private func row(_ widget: WidgetDescriptor) -> some View {
         Button {
             onPick(widget)
             dismiss()
