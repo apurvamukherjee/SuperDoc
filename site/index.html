@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SuperDock</title>
+<meta name="description" content="A free, native macOS companion bar for your Dock: live widgets, AI usage limits, a coding-agents board, window switching and more.">
+<style>
+  :root {
+    --bg: #f6f6f8; --surface: #ffffff; --text: #16161a; --muted: #5d5d66; --line: #e3e3e8;
+    --accent: #5b5bd6; --accent-text: #ffffff; --code: #ececf1;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f0f13; --surface: #18181e; --text: #f2f2f5; --muted: #a1a1ab; --line: #2a2a32;
+      --accent: #8b8bff; --accent-text: #0f0f13; --code: #23232b;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f0f13; --surface: #18181e; --text: #f2f2f5; --muted: #a1a1ab; --line: #2a2a32;
+    --accent: #8b8bff; --accent-text: #0f0f13; --code: #23232b;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 17px/1.55 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif; }
+  main { max-width: 960px; margin: 0 auto; padding: 0 16px 64px; }
+  header { padding: 72px 0 40px; }
+  h1 { font-size: clamp(40px, 7vw, 64px); line-height: 1.05; margin: 0 0 16px; letter-spacing: -0.02em; }
+  .lede { font-size: clamp(18px, 2.4vw, 22px); color: var(--muted); max-width: 640px; margin: 0 0 28px; }
+  .actions { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+  .button { display: inline-block; padding: 12px 20px; border-radius: 12px; background: var(--accent); color: var(--accent-text);
+            text-decoration: none; font-weight: 600; }
+  .button.secondary { background: transparent; color: var(--text); border: 1px solid var(--line); }
+  code { font: 14px ui-monospace, "SF Mono", Menlo, monospace; background: var(--code); padding: 3px 7px; border-radius: 6px;
+         overflow-wrap: anywhere; }
+  .install { margin-top: 18px; color: var(--muted); font-size: 15px; }
+  .bar { margin: 40px 0 8px; display: flex; gap: 6px; padding: 6px; border-radius: 18px; background: var(--surface);
+         border: 1px solid var(--line); overflow-x: auto; }
+  .tile { flex: 0 0 auto; min-width: 72px; height: 72px; border-radius: 12px; background: var(--code); display: grid;
+          place-content: center; text-align: center; font-size: 13px; color: var(--muted); padding: 0 10px; }
+  .tile b { display: block; color: var(--text); font-size: 18px; }
+  .caption { color: var(--muted); font-size: 14px; margin: 0 0 48px; }
+  h2 { font-size: 28px; margin: 48px 0 16px; letter-spacing: -0.01em; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 18px 20px; }
+  .card h3 { margin: 0 0 6px; font-size: 18px; }
+  .card p { margin: 0; color: var(--muted); font-size: 15px; }
+  ul.plain { padding-left: 20px; color: var(--muted); }
+  footer { color: var(--muted); font-size: 14px; border-top: 1px solid var(--line); padding-top: 24px; margin-top: 56px; }
+  a { color: var(--accent); }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>SuperDock</h1>
+    <p class="lede">A free, native companion bar for your Mac's Dock. Live widgets, your AI usage limits and a board of
+      every coding agent you have running — right next to the Dock, where you already look.</p>
+    <div class="actions">
+      <a class="button" href="https://github.com/apurvamukherjee/SuperDoc/releases/latest">Download for macOS</a>
+      <a class="button secondary" href="https://github.com/apurvamukherjee/SuperDoc">Source on GitHub</a>
+    </div>
+    <p class="install">Or with Homebrew: <code>brew install --cask apurvamukherjee/superdock/superdock</code> · macOS 14 Sonoma or later</p>
+  </header>
+
+  <div class="bar" aria-label="Example SuperDock bar">
+    <div class="tile"><b>5:43 PM</b>Clock</div>
+    <div class="tile"><b>42%</b>Claude 5h</div>
+    <div class="tile"><b>3</b>agents working</div>
+    <div class="tile"><b>14%</b>CPU</div>
+    <div class="tile"><b>9°</b>Berlin</div>
+    <div class="tile"><b>24:59</b>Pomodoro</div>
+  </div>
+  <p class="caption">The bar sits beside the Dock, follows it as it grows, hides when it hides, and stays put when you switch Spaces.</p>
+
+  <h2>Everything, free</h2>
+  <div class="grid">
+    <div class="card"><h3>AI limits &amp; agents</h3><p>Claude Code and Codex usage with reset countdowns, plus a live board of
+      sessions: working, needs input, done. A nudge pops up when an agent finishes or needs you.</p></div>
+    <div class="card"><h3>57 widgets</h3><p>System stats, weather, world clocks, Now Playing, Pomodoro, to-dos, git status,
+      local ports, crypto, Hacker News and more. Drag to reorder, resize, save as profiles.</p></div>
+    <div class="card"><h3>Windows</h3><p>Hover previews over Dock icons, an ⌥Tab switcher across Spaces, ⌃⌥1–9 to jump to
+      Dock apps, and a warning with Force Quit when an app freezes.</p></div>
+    <div class="card"><h3>Clipboard</h3><p>History with search and filters (⌥⌘V), pinned paste slots, Copy Peek and a shelf under
+      the notch. Password-manager copies are never stored.</p></div>
+    <div class="card"><h3>Your Dock, your way</h3><p>Profiles per display, Liquid Glass or solid themes, Launchpad with custom
+      icons, live wallpapers, or replace the Dock entirely — your settings come back when you turn it off.</p></div>
+    <div class="card"><h3>Plugins</h3><p>Write a widget as a small JSON file: a URL and which values to show. Plugins can't
+      run code, so they're safe to share in the community gallery.</p></div>
+  </div>
+
+  <h2>Private by design</h2>
+  <ul class="plain">
+    <li>No accounts, no analytics, no crash reports sent anywhere.</li>
+    <li>Only widgets you add that need the internet (weather, prices, feeds) go online, and only while they're showing.</li>
+    <li>AI features read status, timestamps and limit percentages — never your prompts or code.</li>
+    <li>Permissions are asked for only when you turn on the feature that needs them.</li>
+  </ul>
+
+  <footer>SuperDock is open source under the MIT license. Not affiliated with Apple.</footer>
+</main>
+</body>
+</html>
