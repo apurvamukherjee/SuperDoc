@@ -2,7 +2,7 @@
 # apurvamukherjee/homebrew-superdock tap repo (Casks/superdock.rb) after each release. See docs/releasing.md.
 cask "superdock" do
   version "0.1.0"
-  sha256 "0000000000000000000000000000000000000000000000000000000000000000"
+  sha256 "4c2944f8e1201ba950891bd1b1906197ca67cb54ba0323afdca205eb9c14b70a"
 
   url "https://github.com/apurvamukherjee/SuperDoc/releases/download/v#{version}/SuperDock-#{version}.dmg"
   name "SuperDock"
