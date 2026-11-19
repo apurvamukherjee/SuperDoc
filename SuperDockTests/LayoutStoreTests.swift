@@ -50,3 +50,64 @@ struct LayoutStoreTests {
     #expect(BarPlacement.barLength(columns: 0, thickness: 85) == 85)   // empty bar keeps room for +
     #expect(BarPlacement.barLength(columns: 4, thickness: 85) == 322)   // 2×6 padding + 4×73 tiles + 3×6 gaps
 }
+
+@MainActor
+struct ProfileTests {
+    private let file = FileManager.default.temporaryDirectory
+        .appending(path: "superdock-profiles-\(UUID().uuidString)/layout.json")
+
+    @Test func phase2LayoutMigratesToDefaultProfile() throws {
+        try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let old = [Tile(widgetId: "time.clock", size: .wide)]
+        try JSONEncoder().encode(old).write(to: file)
+        let store = LayoutStore(fileURL: file)
+        #expect(store.profiles.count == 1)
+        #expect(store.tiles == old)
+    }
+
+    @Test func newProfileCopiesTilesWithFreshIDs() {
+        let store = LayoutStore(fileURL: file)
+        let original = store.tiles
+        store.addProfile(named: "Code")
+        #expect(store.activeProfile.name == "Code")
+        #expect(store.tiles.map(\.widgetId) == original.map(\.widgetId))
+        #expect(Set(store.tiles.map(\.id)).isDisjoint(with: original.map(\.id)))
+    }
+
+    @Test func eachDisplayRemembersItsOwnProfile() {
+        let store = LayoutStore(fileURL: file)
+        let laptop = store.activeProfile
+        let monitor = store.addProfile(named: "Monitor")   // active on built-in now
+        store.activate(laptop.id)
+        store.display = .external
+        store.activate(monitor.id)
+        store.add("weather.current", size: .wide)
+
+        store.display = .builtIn
+        #expect(store.activeProfile.id == laptop.id)
+        #expect(!store.tiles.contains { $0.widgetId == "weather.current" })
+        store.display = .external
+        #expect(store.tiles.contains { $0.widgetId == "weather.current" })
+
+        let reloaded = LayoutStore(fileURL: file)
+        reloaded.display = .external
+        #expect(reloaded.activeProfile.id == monitor.id)
+    }
+
+    @Test func deletingFallsBackAndKeepsTheLastProfile() {
+        let store = LayoutStore(fileURL: file)
+        let extra = store.addProfile(named: "Study")
+        store.deleteProfile(extra.id)
+        #expect(store.activeProfile.id == store.profiles[0].id)
+        store.deleteProfile(store.profiles[0].id)
+        #expect(store.profiles.count == 1)
+    }
+
+    @Test func activateNextWraps() {
+        let store = LayoutStore(fileURL: file)
+        let first = store.activeProfile.id
+        store.addProfile(named: "Two")
+        store.activateNext()
+        #expect(store.activeProfile.id == first)
+    }
+}
