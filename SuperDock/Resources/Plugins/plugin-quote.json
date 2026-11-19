@@ -1,0 +1,3 @@
+{ "id": "builtin.quote", "name": "Quote", "symbol": "quote.opening", "category": "news", "sizes": ["medium", "wide", "large"],
+  "source": { "url": "https://zenquotes.io/api/random", "every": 3600 },
+  "tile": { "template": "text", "value": "$[0].q", "open": "https://zenquotes.io" } }
