@@ -66,6 +66,7 @@ targets:
       - SuperDock/Clipboard/ClipboardModel.swift
       - SuperDock/Services/WeatherService.swift
       - SuperDock/Widgets/Time/TimeMath.swift
+      - SuperDock/Dock/DockReplacement.swift
       - path: SuperDockTests/Fixtures
         buildPhase: none
     settings:
