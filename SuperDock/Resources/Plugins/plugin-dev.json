@@ -1,0 +1,4 @@
+{ "id": "builtin.dev", "name": "DEV", "symbol": "chevron.left.forwardslash.chevron.right", "category": "news", "sizes": ["wide", "large"],
+  "description": "Latest articles on dev.to.",
+  "source": { "url": "https://dev.to/api/articles?per_page=6", "every": 900 },
+  "tile": { "template": "list", "items": "$[*].title", "links": "$[*].url", "open": "https://dev.to" } }
