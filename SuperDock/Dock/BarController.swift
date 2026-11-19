@@ -53,9 +53,14 @@ final class BarController {
         }
         updateBuddy()
         observeLockAndSleep()
-        tracker.start()
-        // The tracker only reports changes; in replacement mode the Dock starts (and stays) hidden, so lay out once now.
-        layout()
+        // Wait one run-loop turn: sizing the bar's hosting view inside applicationDidFinishLaunching trips a SwiftUI
+        // exclusivity crash (macOS 26) whenever the Dock is already visible at launch.
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.tracker.start()
+            // The tracker only reports changes; in replacement mode the Dock starts (and stays) hidden, so lay out once now.
+            self.layout()
+        }
     }
 
     /// Nothing on the bar should tick while nobody can see it (SUPERDOCK.md §10).
