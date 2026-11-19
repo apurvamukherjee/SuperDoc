@@ -46,17 +46,30 @@ private struct AILimitsTile: View {
     let size: TileSize
     let settings: AILimitsWidget.Settings
     private let service = AIUsageService.shared
+    @Environment(\.openSettings) private var openSettings
 
     var body: some View {
         TimelineView(.everyMinute) { context in
             let rows = settings.providers.list.flatMap { provider in
                 (service.usage[provider]?.windows ?? []).map { (provider, $0) }
             }
-            if rows.isEmpty {
+            if settings.providers != .codex, service.usage[.claude] == nil, !ClaudeStatusLineBridge.standard.isConnected {
+                Button(action: openAISettings) {
+                    VStack(spacing: 2) {
+                        Image(systemName: "link").font(.title3)
+                        if size != .compact { Text("Connect Claude").font(.caption2) }
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                .help("Connect Claude Code in Settings → AI to see its limits")
+            } else if rows.isEmpty {
                 Image(systemName: "gauge.with.dots.needle.0percent")
                     .font(.title3)
                     .foregroundStyle(.secondary)
-                    .help("Connect Claude Code in Settings → AI, or use Codex to see limits")
+                    .help("Use Codex to see its limits")
                     .accessibilityLabel("No AI limit data yet")
             } else if size == .compact {
                 Rings(values: rows.prefix(3).map { shown($0.1, now: context.date) / 100 })
@@ -73,6 +86,12 @@ private struct AILimitsTile: View {
         }
         .onAppear { service.subscribe() }
         .onDisappear { service.unsubscribe() }
+    }
+
+    private func openAISettings() {
+        UserDefaults.standard.set(SettingsTab.ai.rawValue, forKey: SettingsTab.storageKey)
+        NSApp.activate()   // agent apps are never frontmost, so Settings would open behind other apps
+        openSettings()
     }
 
     private func shown(_ window: LimitWindow, now: Date) -> Double {
