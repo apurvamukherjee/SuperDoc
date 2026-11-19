@@ -8,6 +8,8 @@ final class BarModel {
     /// False while the bar is hidden, the screen is locked or the displays sleep. Tiles are unmounted then,
     /// which unsubscribes them from every service, so a hidden bar does no work at all.
     var isActive = true
+    /// Dock replacement mode: the bar starts with SuperDock's own app strip.
+    var showsAppStrip = false
 }
 
 /// Lays out the tiles inside the bar panel.
@@ -15,6 +17,7 @@ struct WidgetHost: View {
     let store: LayoutStore
     let bar: BarModel
     @Environment(\.openSettings) private var openSettings
+    @AppStorage(AppearancePrefs.accentKey) private var accent = ""
 
     private var spacing: CGFloat { BarPlacement.tileSpacing }
     private var unit: CGFloat { BarPlacement.tileUnit(thickness: bar.thickness) }
@@ -22,6 +25,10 @@ struct WidgetHost: View {
     var body: some View {
         let stack = bar.isVertical ? AnyLayout(VStackLayout(spacing: spacing)) : AnyLayout(HStackLayout(spacing: spacing))
         stack {
+            if bar.showsAppStrip, bar.isActive {
+                AppStripView(unit: unit, isVertical: bar.isVertical)
+                Divider().frame(maxHeight: unit)
+            }
             ForEach(bar.isActive ? store.tiles : []) { tile in
                 TileView(tile: tile, frame: frame(for: tile.size))
                     .contextMenu { menu(for: tile) }
@@ -42,6 +49,7 @@ struct WidgetHost: View {
         }
         .padding(spacing)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .tint(Color(hex: accent) ?? .accentColor)
     }
 
     private func frame(for size: TileSize) -> CGSize {
@@ -74,6 +82,9 @@ private struct TileView: View {
     let tile: Tile
     let frame: CGSize
 
+    @AppStorage(AppearancePrefs.tileBackgroundsKey) private var tileBackgrounds = true
+    @AppStorage(AppearancePrefs.cornerRadiusKey) private var cornerRadius = AppearancePrefs.defaultCornerRadius
+
     var body: some View {
         Group {
             if let widget = WidgetRegistry.widget(tile.widgetId) {
@@ -87,7 +98,8 @@ private struct TileView: View {
         }
         .padding(6)
         .frame(width: frame.width, height: frame.height)
-        .background(.quaternary.opacity(0.6), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .background(tileBackgrounds ? AnyShapeStyle(.quaternary.opacity(0.6)) : AnyShapeStyle(.clear),
+                    in: RoundedRectangle(cornerRadius: max(cornerRadius - 6, 4), style: .continuous))
         .accessibilityElement(children: .combine)
     }
 }
