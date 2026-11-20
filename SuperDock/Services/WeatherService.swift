@@ -25,6 +25,14 @@ final class WeatherService {
             var weatherCode: Int
             var high: Double
             var low: Double
+            var sunrise: Date?
+            var sunset: Date?
+        }
+        struct Hour: Equatable {
+            var date: Date
+            var temperature: Double?
+            var weatherCode: Int?
+            var rainChance: Int?
         }
         var temperature: Double
         var feelsLike: Double
@@ -36,6 +44,13 @@ final class WeatherService {
         var sunrise: Date?
         var sunset: Date?
         var fetchedAt: Date
+        var humidity: Int?
+        /// Degrees the wind blows from, meteorological convention.
+        var windDirection: Double?
+        /// The current hour first, up to 6.
+        var hours: [Hour] = []
+        /// The place's own zone: sunrise and hourly labels read in local time there, not on this Mac.
+        var timeZone = TimeZone.current
 
         var high: Double { days.first?.high ?? temperature }
         var low: Double { days.first?.low ?? temperature }
@@ -84,9 +99,11 @@ final class WeatherService {
             .init(name: "latitude", value: String(place.latitude)),
             .init(name: "longitude", value: String(place.longitude)),
             // One request feeds every weather widget for this place.
-            .init(name: "current", value: "temperature_2m,apparent_temperature,weather_code,wind_speed_10m,uv_index"),
-            .init(name: "hourly", value: "precipitation_probability"),
-            .init(name: "forecast_hours", value: "3"),
+            .init(name: "current", value: "temperature_2m,apparent_temperature,weather_code,wind_speed_10m,wind_direction_10m,uv_index,"
+                   + "relative_humidity_2m"),
+            .init(name: "hourly", value: "temperature_2m,weather_code,precipitation_probability"),
+            // Six hours so Rain Soon can say when rain starts, not just whether.
+            .init(name: "forecast_hours", value: "6"),
             .init(name: "daily", value: "weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset"),
             .init(name: "forecast_days", value: "7"),
             .init(name: "timezone", value: "auto"),
@@ -120,19 +137,32 @@ final class WeatherService {
             guard let date = day.date(from: daily.time[index]), index < daily.weather_code.count,
                   index < daily.temperature_2m_max.count, index < daily.temperature_2m_min.count else { return nil }
             return Report.Day(date: date, weatherCode: daily.weather_code[index],
-                              high: daily.temperature_2m_max[index], low: daily.temperature_2m_min[index])
+                              high: daily.temperature_2m_max[index], low: daily.temperature_2m_min[index],
+                              sunrise: daily.sunrise[safe: index].flatMap(local.date(from:)),
+                              sunset: daily.sunset[safe: index].flatMap(local.date(from:)))
+        }
+        let hourly = response.hourly
+        let hours = (hourly.time ?? []).enumerated().compactMap { index, time -> Report.Hour? in
+            guard let date = local.date(from: time) else { return nil }
+            return Report.Hour(date: date, temperature: hourly.temperature_2m?[safe: index] ?? nil,
+                               weatherCode: hourly.weather_code?[safe: index] ?? nil,
+                               rainChance: hourly.precipitation_probability[safe: index] ?? nil)
         }
         return Report(
             temperature: response.current.temperature_2m,
             feelsLike: response.current.apparent_temperature,
             windSpeed: response.current.wind_speed_10m,
             uvIndex: response.current.uv_index,
-            rainChance: response.hourly.precipitation_probability.compactMap { $0 }.max() ?? 0,
+            rainChance: response.hourly.precipitation_probability.prefix(3).compactMap { $0 }.max() ?? 0,
             weatherCode: response.current.weather_code,
             days: days,
             sunrise: daily.sunrise.first.flatMap(local.date(from:)),
             sunset: daily.sunset.first.flatMap(local.date(from:)),
-            fetchedAt: fetchedAt
+            fetchedAt: fetchedAt,
+            humidity: response.current.relative_humidity_2m.map { Int($0.rounded()) },
+            windDirection: response.current.wind_direction_10m,
+            hours: hours,
+            timeZone: local.timeZone
         )
     }
 
@@ -161,8 +191,14 @@ private struct ForecastResponse: Decodable {
         var weather_code: Int
         var wind_speed_10m: Double
         var uv_index: Double
+        // Optional: responses cached or recorded before these were requested don't carry them.
+        var relative_humidity_2m: Double?
+        var wind_direction_10m: Double?
     }
     struct Hourly: Decodable {
+        var time: [String]?
+        var temperature_2m: [Double?]?
+        var weather_code: [Int?]?
         var precipitation_probability: [Int?]
     }
     struct Daily: Decodable {
@@ -188,4 +224,8 @@ private struct GeocodingResponse: Decodable {
         var longitude: Double
     }
     var results: [Result]?
+}
+
+private extension Array {
+    subscript(safe index: Int) -> Element? { indices.contains(index) ? self[index] : nil }
 }
