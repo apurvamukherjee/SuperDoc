@@ -64,38 +64,49 @@ final class AppStrip {
     }
 }
 
+/// Icons at the Dock's own icon size (the bar's unit), running dots in the padding below, a small magnify on hover.
 struct AppStripView: View {
-    let unit: CGFloat
-    let isVertical: Bool
-    private let strip = AppStrip.shared
+    let items: [AppStrip.Item]
+    let context: TileContext
 
     var body: some View {
-        let stack = isVertical ? AnyLayout(VStackLayout(spacing: BarPlacement.tileSpacing))
-                               : AnyLayout(HStackLayout(spacing: BarPlacement.tileSpacing))
+        let stack = context.isPortrait ? AnyLayout(VStackLayout(spacing: TileContext.spacing))
+                                       : AnyLayout(HStackLayout(spacing: TileContext.spacing))
         stack {
-            ForEach(strip.items) { item in
-                AppIcon(item: item, unit: unit)
+            ForEach(items) { item in
+                AppIcon(item: item, context: context)
             }
-            TrashIcon(unit: unit)
+            TrashIcon(context: context)
         }
     }
 }
 
+/// The hover magnification. The panel is exactly bar-sized, so an icon may only grow into the padding above it.
+private func magnification(unit: CGFloat) -> CGFloat { 1 + (TileContext.spacing - 1) / unit }
+
 private struct AppIcon: View {
     let item: AppStrip.Item
-    let unit: CGFloat
+    let context: TileContext
+    @State private var isHovered = false
 
     var body: some View {
         Button {
             NSWorkspace.shared.openApplication(at: item.url, configuration: NSWorkspace.OpenConfiguration())
         } label: {
             Image(nsImage: IconProvider.icon(for: item.url)).resizable().scaledToFit()
-                .frame(width: unit, height: unit)
+                .frame(width: context.unit, height: context.unit)
+                .scaleEffect(isHovered ? magnification(unit: context.unit) : 1, anchor: .bottom)
+                .tileAnimation(Motion.lift, value: isHovered)
                 .overlay(alignment: .bottom) {
-                    if item.isRunning { Circle().fill(.primary).frame(width: 4, height: 4).offset(y: 4) }
+                    if item.isRunning {
+                        // Centred in the padding under the icon, where the native Dock puts it.
+                        Circle().fill(context.surface.primary.opacity(0.85)).frame(width: 4, height: 4)
+                            .offset(y: TileContext.spacing / 2 + 2)
+                    }
                 }
         }
         .buttonStyle(.plain)
+        .onHover { isHovered = $0 }
         .help(FileManager.default.displayName(atPath: item.url.path))
         .accessibilityLabel(FileManager.default.displayName(atPath: item.url.path) + (item.isRunning ? ", running" : ""))
         .contextMenu {
@@ -118,18 +129,22 @@ private struct AppIcon: View {
 
 /// Click opens the Trash; dropping files moves them to the Trash (never deletes them, hard rule 8).
 private struct TrashIcon: View {
-    let unit: CGFloat
+    let context: TileContext
     @State private var isTargeted = false
+    @State private var isHovered = false
 
     var body: some View {
         Button {
             NSWorkspace.shared.open(FileManager.default.homeDirectoryForCurrentUser.appending(path: ".Trash"))
         } label: {
-            Image(systemName: isTargeted ? "trash.fill" : "trash")
-                .font(.system(size: unit * 0.5))
-                .frame(width: unit, height: unit)
+            Image(nsImage: NSImage(named: isTargeted ? NSImage.trashFullName : NSImage.trashEmptyName) ?? NSImage())
+                .resizable().scaledToFit()
+                .frame(width: context.unit, height: context.unit)
+                .scaleEffect(isHovered || isTargeted ? magnification(unit: context.unit) : 1, anchor: .bottom)
+                .tileAnimation(Motion.lift, value: isHovered || isTargeted)
         }
         .buttonStyle(.plain)
+        .onHover { isHovered = $0 }
         .dropDestination(for: URL.self) { urls, _ in
             for url in urls where url.isFileURL {
                 do {

@@ -95,6 +95,9 @@ final class BarController {
         if enabled { AgentSessionService.shared.subscribe() } else { AgentSessionService.shared.unsubscribe() }
     }
 
+    /// An empty bar still shows its two-column "Add widgets" invitation.
+    private var tileColumns: Int { store.tiles.isEmpty ? TileSize.medium.columns : store.totalColumns }
+
     private func layout() {
         if DockReplacement.isEnabled { return layoutAsDock() }
         if bar.showsAppStrip { bar.showsAppStrip = false }
@@ -118,7 +121,7 @@ final class BarController {
         let frame = BarPlacement.barFrame(
             dock: dock.frame, bounds: dock.visibleFrame,
             position: BarPrefs.position, gap: BarPrefs.gap,
-            length: BarPlacement.barLength(columns: store.totalColumns, thickness: thickness)
+            length: BarPlacement.barLength(columns: tileColumns, thickness: thickness)
         )
         panel.setFrame(frame, display: true)
         if !panel.isVisible { panel.orderFrontRegardless() }
@@ -143,7 +146,7 @@ final class BarController {
         if !bar.showsAppStrip { bar.showsAppStrip = true }
 
         let separator: CGFloat = 1 + BarPlacement.tileSpacing
-        let columns = store.totalColumns + AppStrip.shared.items.count + 1   // + Trash
+        let columns = tileColumns + AppStrip.shared.items.count + 1   // + Trash
         let length = BarPlacement.barLength(columns: columns, thickness: thickness) + separator
         panel.setFrame(NSRect(x: screen.frame.midX - length / 2, y: screen.frame.minY + 4, width: length, height: thickness),
                        display: true)

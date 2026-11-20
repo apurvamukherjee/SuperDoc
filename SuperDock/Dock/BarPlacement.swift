@@ -86,3 +86,53 @@ enum BarPlacement {
         }
     }
 }
+
+/// Drag-to-reorder geometry along the bar, in points from the first tile's leading edge. Pure so it can be tested.
+struct BarReorder {
+    /// Each tile's length along the bar, in order.
+    let lengths: [CGFloat]
+    var spacing: CGFloat = BarPlacement.tileSpacing
+
+    /// Leading edge of each tile before any drag.
+    var starts: [CGFloat] {
+        var next: CGFloat = 0
+        return lengths.map { length in
+            defer { next += length + spacing }
+            return next
+        }
+    }
+
+    /// Keeps the dragged tile within the run of tiles.
+    func clamp(_ translation: CGFloat, from: Int) -> CGFloat {
+        guard let last = lengths.last else { return 0 }
+        let starts = starts
+        let end = starts[lengths.count - 1] + last
+        return min(max(translation, -starts[from]), end - starts[from] - lengths[from])
+    }
+
+    /// Where the dragged tile would land. A neighbour is passed once the dragged tile's leading edge (moving forward,
+    /// its trailing edge) crosses that neighbour's centre, so a wide tile can pass a narrow one and vice versa.
+    func target(from: Int, translation: CGFloat) -> Int {
+        let starts = starts
+        let leading = starts[from] + translation
+        let trailing = leading + lengths[from]
+        let center = { (index: Int) in starts[index] + lengths[index] / 2 }
+        let forward = lengths.indices.filter { $0 > from && trailing > center($0) }.count
+        let back = lengths.indices.filter { $0 < from && leading < center($0) }.count
+        return from + forward - back
+    }
+
+    /// How far tile `index` slides to open the slot at `target`.
+    func shift(of index: Int, from: Int, target: Int) -> CGFloat {
+        let gap = lengths[from] + spacing
+        if index > from, index <= target { return -gap }
+        if index < from, index >= target { return gap }
+        return 0
+    }
+
+    /// The open slot's distance from the dragged tile's own (unmoved) position.
+    func slotOffset(from: Int, target: Int) -> CGFloat {
+        let passed = target > from ? lengths[(from + 1)...target] : lengths[target..<from]
+        return passed.reduce(0) { $0 + $1 + spacing } * (target > from ? 1 : -1)
+    }
+}
