@@ -40,6 +40,30 @@ enum DevParsing {
         return GitStatus(branch: branch, changed: lines.count - 1, ahead: count("ahead"), behind: count("behind"))
     }
 
+    struct Commit: Equatable {
+        var hash: String
+        var date: Date
+        var subject: String
+    }
+
+    static let commitFormat = "%h%x1f%ct%x1f%s"
+
+    /// Parses `git log -1 --format=<commitFormat>`.
+    static func lastCommit(fromLog output: String) -> Commit? {
+        let fields = output.trimmingCharacters(in: .newlines).split(separator: "\u{1f}", omittingEmptySubsequences: false)
+        guard fields.count == 3, let seconds = TimeInterval(fields[1]) else { return nil }
+        return Commit(hash: String(fields[0]), date: Date(timeIntervalSince1970: seconds), subject: String(fields[2]))
+    }
+
+    /// Parses `git diff --shortstat HEAD`: " 3 files changed, 142 insertions(+), 37 deletions(-)". Empty = clean.
+    static func lineChanges(fromShortstat output: String) -> (insertions: Int, deletions: Int) {
+        func count(_ word: String) -> Int {
+            guard let range = output.range(of: " \(word)") else { return 0 }
+            return Int(String(output[..<range.lowerBound].reversed().prefix { $0.isNumber }.reversed())) ?? 0
+        }
+        return (count("insertion"), count("deletion"))
+    }
+
     static let passwordAlphabet = Array("abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$%^&*-_=+")
 
     /// Random password from the system CSPRNG (`SystemRandomNumberGenerator` reads the kernel's secure source).

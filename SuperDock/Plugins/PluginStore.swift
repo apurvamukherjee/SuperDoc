@@ -145,6 +145,9 @@ final class PluginFetcher {
     private(set) var failed: Set<String> = []
     @ObservationIgnored private var fetchedAt: [String: Date] = [:]
 
+    /// When `key` last fetched successfully; `results` changes at the same moment, so views re-read it in time.
+    func lastFetch(_ key: String) -> Date? { fetchedAt[key] }
+
     /// Runs for as long as the tile's `.task` lives.
     func keepFresh(_ url: URL, headers: [String: String], every seconds: Int) async {
         let key = url.absoluteString
@@ -176,6 +179,7 @@ final class PluginFetcher {
     }
 }
 
+/// Reads the shared fetcher and turns the manifest's JSONPaths into a `PluginDisplay` for `PluginTileView`.
 private struct PluginTile: View {
     let manifest: PluginManifest
     let size: TileSize
@@ -184,56 +188,58 @@ private struct PluginTile: View {
 
     var body: some View {
         let values = manifest.values(from: settings)
-        let tile = manifest.tile
         if let url = URL(string: PluginTemplate.fill(manifest.source.url, with: values, encode: true)) {
             let key = url.absoluteString
-            content(json: fetcher.results[key], failed: fetcher.failed.contains(key), values: values, tile: tile)
+            PluginTileView(phase: phase(key: key, values: values)) { open($0, values: [:]) }
                 .contentShape(Rectangle())
-                .onTapGesture { open(tile.open, values: values) }
+                .onTapGesture { open(manifest.tile.open, values: values) }
                 .task(id: key) { await fetcher.keepFresh(url, headers: manifest.source.headers ?? [:], every: manifest.interval) }
         } else {
-            Image(systemName: "exclamationmark.triangle").accessibilityLabel("Plugin URL is invalid")
+            PluginTileView(phase: .invalidURL)
         }
     }
 
-    @ViewBuilder
-    private func content(json: Any?, failed: Bool, values: [String: String], tile: PluginManifest.Tile) -> some View {
-        if let json {
-            let path = { (template: String?) in template.map { PluginTemplate.fill($0, with: values) } }
-            let main = path(tile.value).flatMap { JSONPath.value($0, in: json) }
-            let shown = (tile.prefix ?? "") + PluginTemplate.format(main, as: tile.format, currency: tile.currency) + (tile.suffix ?? "")
-            switch tile.template {
-            case .value:
-                LegacyStatTile(label: LocalizedStringKey(PluginTemplate.fill(tile.label ?? manifest.name, with: values)), value: shown,
-                         detail: path(tile.subtitle).flatMap { JSONPath.value($0, in: json) }.map { "\($0)" })
-            case .text:
-                Text(shown).font(size == .compact ? .caption2 : .caption).lineLimit(4).minimumScaleFactor(0.7)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-            case .gauge:
-                Gauge(value: min(max((main as? NSNumber)?.doubleValue ?? 0, 0), tile.max ?? 100), in: 0...(tile.max ?? 100)) {
-                    Text(verbatim: PluginTemplate.fill(tile.label ?? manifest.name, with: values))
-                } currentValueLabel: { Text(shown) }
-                .gaugeStyle(.accessoryCircular)
-            case .list:
-                list(titles: path(tile.items).map { JSONPath.values($0, in: json) } ?? [],
-                     links: path(tile.links).map { JSONPath.values($0, in: json) } ?? [])
-            }
-        } else if failed {
-            Image(systemName: "exclamationmark.icloud").font(.title3).accessibilityLabel("\(manifest.name) unavailable")
-        } else {
-            ProgressView().controlSize(.small)
-        }
+    private func phase(key: String, values: [String: String]) -> PluginPhase {
+        let failed = fetcher.failed.contains(key)
+        guard let json = fetcher.results[key] else { return failed ? .offline(name: manifest.name) : .loading }
+        let age = failed ? fetcher.lastFetch(key).map { $0.formatted(.relative(presentation: .named, unitsStyle: .abbreviated)) } : nil
+        return .ready(display(json: json, values: values), staleAge: age)
     }
 
-    private func list(titles: [Any], links: [Any]) -> some View {
-        let rows = size.columns >= 3 ? 3 : 2
-        return VStack(alignment: .leading, spacing: 2) {
-            ForEach(Array(titles.prefix(rows).enumerated()), id: \.offset) { index, title in
-                Text(verbatim: "\(title)").font(.caption2).lineLimit(1)
-                    .onTapGesture { open(links.indices.contains(index) ? "\(links[index])" : nil, values: [:]) }
-            }
+    private func display(json: Any, values: [String: String]) -> PluginDisplay {
+        let tile = manifest.tile
+        let path = { (template: String?) in template.map { PluginTemplate.fill($0, with: values) } }
+        let main = path(tile.value).flatMap { JSONPath.value($0, in: json) }
+        let subtitle = path(tile.subtitle).flatMap { JSONPath.value($0, in: json) }.map { "\($0)" }
+        let number = (main as? NSNumber)?.doubleValue ?? (main as? String).flatMap(Double.init)
+        var formatted = PluginTemplate.format(main, as: tile.format, currency: tile.currency)
+        // A compact tile can't fit "97,234.51"; "97K" reads at a glance and the tap opens the full figure.
+        if size == .compact, let number, abs(number) >= 10_000, tile.format != .bytes {
+            formatted = number.formatted(.number.notation(.compactName).precision(.significantDigits(1...3)))
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        let shown = (tile.prefix ?? "") + formatted + (tile.suffix ?? "")
+        let content: PluginDisplay.Content = switch tile.template {
+        case .value: .value(shown, subtitle: subtitle, numeric: number != nil && !(main is String && tile.format == nil))
+        case .text: .text(shown)
+        case .gauge:
+            .gauge(fraction: (number ?? 0) / (tile.max ?? 100), value: shown, subtitle: subtitle,
+                   range: "0 – \((tile.max ?? 100).formatted())")
+        case .list: .list(items(json: json, path: path))
+        }
+        return PluginDisplay(label: PluginTemplate.fill(tile.label ?? manifest.name, with: values),
+                             symbol: manifest.symbol ?? "puzzlepiece.extension", hue: PluginDisplay.hue(for: manifest.id),
+                             content: content)
+    }
+
+    private func items(json: Any, path: (String?) -> String?) -> [PluginDisplay.Item] {
+        let titles = path(manifest.tile.items).map { JSONPath.values($0, in: json) } ?? []
+        let links = path(manifest.tile.links).map { JSONPath.values($0, in: json) } ?? []
+        let counts = path(manifest.tile.counts).map { JSONPath.values($0, in: json) } ?? []
+        return titles.prefix(8).enumerated().map { index, title in
+            PluginDisplay.Item(id: index, title: "\(title)",
+                               count: counts.indices.contains(index) ? PluginTemplate.format(counts[index], as: .number) : nil,
+                               link: links.indices.contains(index) ? "\(links[index])" : nil)
+        }
     }
 
     /// Only web links, so a plugin can't open apps or files.

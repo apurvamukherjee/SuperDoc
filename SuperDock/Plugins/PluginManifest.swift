@@ -37,6 +37,8 @@ struct PluginManifest: Codable, Equatable {
         /// JSONPath with `[*]`, e.g. `$.hits[*].title`.
         var items: String?
         var links: String?
+        /// JSONPath with `[*]` for a number shown before each list item (points, score), e.g. `$.hits[*].points`.
+        var counts: String?
         var max: Double?
         var format: Format?
         /// ISO currency code for `format: currency`.
