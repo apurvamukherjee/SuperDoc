@@ -26,7 +26,7 @@ struct AILimitsWidget: SuperWidget {
     static var defaultSettings: Settings { Settings() }
 
     static func view(size: TileSize, settings: Settings) -> some View {
-        AILimitsTile(size: size, settings: settings)
+        AILimitsTile(settings: settings)
     }
 
     static func settingsView(_ settings: Binding<Settings>) -> AnyView? {
@@ -42,108 +42,45 @@ struct AILimitsWidget: SuperWidget {
     }
 }
 
+/// Reads the service and hands plain values to `AILimitsView`.
 private struct AILimitsTile: View {
-    let size: TileSize
     let settings: AILimitsWidget.Settings
     private let service = AIUsageService.shared
     @Environment(\.openSettings) private var openSettings
 
     var body: some View {
         TimelineView(.everyMinute) { context in
-            let rows = settings.providers.list.flatMap { provider in
-                (service.usage[provider]?.windows ?? []).map { (provider, $0) }
-            }
-            if settings.providers != .codex, service.usage[.claude] == nil, !ClaudeStatusLineBridge.standard.isConnected {
-                Button(action: openAISettings) {
-                    VStack(spacing: 2) {
-                        Image(systemName: "link").font(.title3)
-                        if size != .compact { Text("Connect Claude").font(.caption2) }
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
-                .help("Connect Claude Code in Settings → AI to see its limits")
-            } else if rows.isEmpty {
-                Image(systemName: "gauge.with.dots.needle.0percent")
-                    .font(.title3)
-                    .foregroundStyle(.secondary)
-                    .help("Use Codex to see its limits")
-                    .accessibilityLabel("No AI limit data yet")
-            } else if size == .compact {
-                Rings(values: rows.prefix(3).map { shown($0.1, now: context.date) / 100 })
-                    .accessibilityElement()
-                    .accessibilityLabel(rows.map { label($0, now: context.date) }.joined(separator: ", "))
-            } else {
-                VStack(alignment: .leading, spacing: 3) {
-                    ForEach(rows.prefix(size == .medium ? 2 : 4), id: \.1.id) { provider, window in
-                        Bar(title: "\(provider.title) \(window.label)", value: shown(window, now: context.date),
-                            detail: size == .medium ? nil : countdown(window, now: context.date))
-                    }
-                }
-            }
+            AILimitsView(content: content(now: context.date), showRemaining: settings.showRemaining, onConnect: openAISettings)
         }
         .onAppear { service.subscribe() }
         .onDisappear { service.unsubscribe() }
+    }
+
+    private func content(now: Date) -> AILimitsView.Content {
+        if settings.providers != .codex, service.usage[.claude] == nil, !ClaudeStatusLineBridge.standard.isConnected {
+            return .connect
+        }
+        let limits = settings.providers.list.flatMap { provider in
+            (service.usage[provider]?.windows ?? []).enumerated().map { index, window in
+                Self.limit(window, provider: provider, isPrimary: index == 0, now: now)
+            }
+        }
+        return limits.isEmpty ? .noData : .limits(limits)
+    }
+
+    static func limit(_ window: LimitWindow, provider: AIProvider, isPrimary: Bool, now: Date) -> AILimit {
+        let isWeek = window.label == String(localized: "Week")
+        let resetsIn = window.resetsAt.map { $0.timeIntervalSince(now) }.flatMap { $0 > 0 ? $0 : nil }
+        return AILimit(provider: provider, name: isWeek ? String(localized: "Wk") : window.label,
+                       longName: isWeek ? String(localized: "Weekly") : window.label == String(localized: "5h")
+                           ? String(localized: "5-hour") : window.label,
+                       used: window.usedPercent(at: now), resetsIn: resetsIn,
+                       resetDay: window.resetsAt?.formatted(.dateTime.weekday(.abbreviated)), isPrimary: isPrimary)
     }
 
     private func openAISettings() {
         UserDefaults.standard.set(SettingsTab.ai.rawValue, forKey: SettingsTab.storageKey)
         NSApp.activate()   // agent apps are never frontmost, so Settings would open behind other apps
         openSettings()
-    }
-
-    private func shown(_ window: LimitWindow, now: Date) -> Double {
-        let used = window.usedPercent(at: now)
-        return settings.showRemaining ? 100 - used : used
-    }
-
-    private func countdown(_ window: LimitWindow, now: Date) -> String? {
-        guard let resetsAt = window.resetsAt, resetsAt > now else { return nil }
-        return Duration.seconds(resetsAt.timeIntervalSince(now))
-            .formatted(.units(allowed: [.days, .hours, .minutes], width: .narrow, maximumUnitCount: 2))
-    }
-
-    private func label(_ row: (AIProvider, LimitWindow), now: Date) -> String {
-        let verb = settings.showRemaining ? String(localized: "left") : String(localized: "used")
-        return "\(row.0.title) \(row.1.label) \(Int(shown(row.1, now: now)))% \(verb)"
-    }
-}
-
-private struct Bar: View {
-    let title: String
-    let value: Double   // 0–100
-    let detail: String?
-
-    var body: some View {
-        HStack(spacing: 6) {
-            Text(title).font(.caption2).foregroundStyle(.secondary).frame(width: 70, alignment: .leading)
-            ProgressView(value: min(max(value, 0), 100), total: 100).tint(value >= 80 ? .orange : .accentColor)
-            Text("\(Int(value))%").font(.caption2.monospacedDigit()).frame(width: 30, alignment: .trailing)
-            if let detail { Text(detail).font(.caption2).foregroundStyle(.secondary).frame(width: 44, alignment: .trailing) }
-        }
-        .tileText()
-    }
-}
-
-/// Concentric rings, outermost first.
-private struct Rings: View {
-    let values: [Double]   // 0–1
-    private let colors: [Color] = [.orange, .blue, .green]
-
-    var body: some View {
-        ZStack {
-            ForEach(values.indices, id: \.self) { index in
-                let inset = CGFloat(index) * 7
-                Circle().stroke(.quaternary, lineWidth: 5).padding(inset)
-                Circle()
-                    .trim(from: 0, to: min(max(values[index], 0), 1))
-                    .stroke(colors[index % colors.count], style: StrokeStyle(lineWidth: 5, lineCap: .round))
-                    .rotationEffect(.degrees(-90))
-                    .padding(inset)
-            }
-        }
-        .padding(4)
     }
 }
