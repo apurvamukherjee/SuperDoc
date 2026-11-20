@@ -57,8 +57,10 @@ struct PreviewBar: View {
         .padding(TileContext.spacing)
         .background(BarBackdrop(surface: surface, radius: barRadius).opacity(opacity))
         .tint(accentColor)
-        // A preview is for looking at; clicks belong to the card around it, not to the widget's controls.
+        // A preview is for looking at; clicks belong to the card around it, not to the widget's controls, and
+        // a page of previews shouldn't keep looping animations running.
         .allowsHitTesting(false)
+        .environment(\.tileIsStill, true)
     }
 }
 

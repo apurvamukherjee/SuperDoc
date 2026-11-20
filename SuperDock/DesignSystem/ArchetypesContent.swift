@@ -249,14 +249,15 @@ struct TileSlider: View {
 
     var body: some View {
         GeometryReader { geo in
+            let fillWidth = geo.size.width * value.unitClamped
             ZStack(alignment: .leading) {
                 Rectangle().fill(tile.surface.controlFill)
-                Rectangle().fill(tile.surface.controlOn).frame(width: geo.size.width * value.unitClamped)
+                Rectangle().fill(tile.surface.controlOn).frame(width: fillWidth)
                 if let symbol {
-                    Image(systemName: symbol)
-                        .font(.system(size: geo.size.height * 0.42, weight: .semibold))
-                        .foregroundStyle(tile.surface.controlOnInk)
-                        .padding(.leading, geo.size.height * 0.45)
+                    // Two copies split at the fill's edge, so the glyph stays legible over both fill and track.
+                    glyph(symbol, height: geo.size.height, color: tile.surface.primary)
+                    glyph(symbol, height: geo.size.height, color: tile.surface.controlOnInk)
+                        .mask(alignment: .leading) { Rectangle().frame(width: fillWidth) }
                 }
             }
             .clipShape(Capsule())
@@ -272,6 +273,13 @@ struct TileSlider: View {
         .accessibilityAdjustableAction { direction in
             value = (value + (direction == .increment ? 0.1 : -0.1)).unitClamped
         }
+    }
+
+    private func glyph(_ symbol: String, height: CGFloat, color: Color) -> some View {
+        Image(systemName: symbol)
+            .font(.system(size: height * 0.42, weight: .semibold))
+            .foregroundStyle(color)
+            .padding(.leading, height * 0.45)
     }
 }
 

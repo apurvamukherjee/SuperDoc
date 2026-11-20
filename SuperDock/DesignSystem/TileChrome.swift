@@ -17,22 +17,32 @@ struct TileAppearance: Equatable, Sendable {
     /// How strongly the tint covers the fill, 0...1.
     var tintOpacity: Double = 1
     var outline = Outline.none
+    /// Showing a last value while offline: the chrome adds the cloud badge (see `.tileStale(_:)`).
+    var isStale = false
 }
 
-private struct TileAppearanceKey: PreferenceKey {
+struct TileAppearanceKey: PreferenceKey {
     static let defaultValue = TileAppearance()
 
     static func reduce(value: inout TileAppearance, nextValue: () -> TileAppearance) {
         let next = nextValue()
         if !next.tint.isEmpty { value.tint = next.tint; value.tintOpacity = next.tintOpacity }
         if next.outline != .none { value.outline = next.outline }
+        value.isStale = value.isStale || next.isStale
     }
 }
 
 extension View {
+    // Transform rather than `.preference`: a preference set further out replaces the inner value wholesale, so
+    // `.tileTint(x).tileOutline(.alert)` would lose the tint.
+
     /// Washes the whole tile in `colors` (media art, weather sky, note paper). One colour = flat tint.
     func tileTint(_ colors: [Color], opacity: Double = 1) -> some View {
-        preference(key: TileAppearanceKey.self, value: TileAppearance(tint: colors, tintOpacity: opacity))
+        transformPreference(TileAppearanceKey.self) { appearance in
+            guard !colors.isEmpty else { return }
+            appearance.tint = colors
+            appearance.tintOpacity = opacity
+        }
     }
 
     func tileTint(_ color: Color?, opacity: Double = 1) -> some View {
@@ -40,7 +50,9 @@ extension View {
     }
 
     func tileOutline(_ outline: TileAppearance.Outline) -> some View {
-        preference(key: TileAppearanceKey.self, value: TileAppearance(outline: outline))
+        transformPreference(TileAppearanceKey.self) { appearance in
+            if outline != .none { appearance.outline = outline }
+        }
     }
 
     /// Draws `self` as one bar tile: padding, fixed frame, fill, hairline, continuous corners, light-style shadow,
@@ -66,12 +78,15 @@ struct TileChrome: ViewModifier {
                 }
             }
             .clipShape(shape)
-            .background {
+            .backgroundPreferenceValue(TileAppearanceKey.self) { appearance in
                 // Fill and shadow sit outside the clip so the shadow isn't cut off.
-                shape.fill(surface.tileFill).shadow(color: surface.shadow, radius: 5 * tile.scale, y: 1.5)
+                if appearance.outline != .dashed {
+                    shape.fill(surface.tileFill).shadow(color: surface.shadow, radius: 5 * tile.scale, y: 1.5)
+                }
             }
             .overlayPreferenceValue(TileAppearanceKey.self) { appearance in
                 TileOutlineView(outline: appearance.outline, shape: shape, surface: surface)
+                    .overlay(alignment: .bottomTrailing) { if appearance.isStale { StaleBadge() } }
             }
             .contentShape(shape)
     }
@@ -94,6 +109,24 @@ private struct TileOutlineView: View {
         case .dashed:
             shape.strokeBorder(surface.strongStroke, style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
         }
+    }
+}
+
+/// The offline mark on a stale tile. It straddles the bottom-trailing corner, over the corner cut and padding
+/// rather than the content, so it can't land on a label, glyph or detail whatever the widget puts in its slots.
+private struct StaleBadge: View {
+    @Environment(\.tile) private var tile
+
+    var body: some View {
+        // Capped because the half outside the tile has to fit the fixed 6 pt gap to the neighbour / bar edge.
+        let side = min(12 * tile.scale, 12)
+        Image(systemName: "exclamationmark.icloud")
+            .font(.system(size: side * 0.62, weight: .bold))
+            .foregroundStyle(tile.surface.controlOnInk)
+            .frame(width: side, height: side)
+            .background(Circle().fill(tile.surface.controlOn))
+            .offset(x: side / 2 - 0.5, y: side / 2 - 0.5)
+            .accessibilityHidden(true)
     }
 }
 

@@ -42,29 +42,40 @@ struct TileStateView: View {
         case let .empty(title, detail):
             layout(caption: nil, title: title, detail: detail) { LimoFace(snoring: tile.isCompact) }
         case let .offline(detail):
-            layout(caption: "Offline", title: "Offline", detail: detail) { TileSymbol(name: "icloud.slash", color: tile.surface.secondary) }
+            layout(caption: "Offline", title: "Offline", detail: detail) {
+                TileSymbol(name: "exclamationmark.icloud", color: tile.surface.secondary)
+            }
         case let .needsPermission(detail):
             layout(caption: "Allow", title: "Needs access", detail: detail, color: tile.surface.warning) {
                 TileSymbol(name: "key", color: tile.surface.warning)
             }
         case let .needsSetup(verb, title, detail):
-            layout(caption: verb, title: title, detail: detail) { TileSymbol(name: "link", color: tile.surface.primary) }
+            // Connecting an account is Limo's "curious" moment (mockup 04); other verbs (choose, set) keep the link.
+            if verb == String(localized: "Connect") {
+                layout(caption: verb, title: title, detail: detail, faceGlyph: true) {
+                    LimoFace(snoring: false, pose: .curious)
+                }
+            } else {
+                layout(caption: verb, title: title, detail: detail) { TileSymbol(name: "link", color: tile.surface.primary) }
+            }
         }
     }
 
     /// Compact: glyph over a caption. Wider: glyph beside title + detail. `color` tints the caption and the detail.
-    private func layout(caption: String?, title: String, detail: String, color: Color? = nil,
+    /// `faceGlyph` sizes a Limo face up, since its features read smaller than an SF Symbol in the same box.
+    private func layout(caption: String?, title: String, detail: String, color: Color? = nil, faceGlyph: Bool = false,
                         @ViewBuilder glyph: () -> some View) -> some View {
         Group {
             if tile.isCompact {
                 VStack(spacing: 5 * tile.scale) {
-                    glyph().frame(width: 20 * tile.scale, height: 20 * tile.scale)
+                    let side = (faceGlyph && caption != nil ? 26 : 20) * tile.scale
+                    glyph().frame(width: side, height: side)
                     if let caption { Text(caption).tileStyle(.caption, color: color ?? tile.surface.secondary) }
                 }
                 .scaleEffect(caption == nil ? 1.6 : 1)
             } else {
                 HStack(spacing: 8 * tile.scale) {
-                    let side = (caption == nil ? 32 : 20) * tile.scale
+                    let side = (caption == nil || faceGlyph ? 32 : 20) * tile.scale
                     glyph().frame(width: side, height: side)
                     VStack(alignment: .leading, spacing: 1) {
                         Text(title).tileStyle(.title)
@@ -103,23 +114,20 @@ private struct TileSkeleton: View {
 }
 
 extension View {
-    /// Error/offline with a last value: keep showing it, dimmed, with a cloud-slash mark and its age.
+    /// Error/offline with a last value: keep showing it, dimmed, with an offline badge on the tile corner and its age.
     func tileStale(_ age: String?) -> some View {
         modifier(StaleModifier(age: age))
     }
 }
 
 private struct StaleModifier: ViewModifier {
-    @Environment(\.tile) private var tile
     let age: String?
 
     func body(content: Content) -> some View {
         if let age {
+            // The badge is drawn by `TileChrome`, outside the content's clip and dimming.
             content.opacity(0.5)
-                .overlay(alignment: .topTrailing) {
-                    Image(systemName: "icloud.slash").font(.system(size: 9 * tile.scale, weight: .semibold))
-                        .foregroundStyle(tile.surface.secondary)
-                }
+                .transformPreference(TileAppearanceKey.self) { $0.isStale = true }
                 .accessibilityValue("Offline, showing data from \(age)")
         } else {
             content

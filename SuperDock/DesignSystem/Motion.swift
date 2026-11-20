@@ -24,7 +24,8 @@ extension View {
         modifier(TileAnimationModifier(animation: animation, value: value))
     }
 
-    /// The agent "working" breath: opacity eases between 1 and 0.45 while `isActive`. Static under Reduce Motion.
+    /// The agent "working" breath: opacity eases between 1 and 0.45 while `isActive`. Static under Reduce Motion and
+    /// in still previews (`\.tileIsStill`).
     func workingPulse(_ isActive: Bool) -> some View {
         modifier(PulseModifier(isActive: isActive))
     }
@@ -40,12 +41,18 @@ private struct TileAnimationModifier<Value: Equatable>: ViewModifier {
     }
 }
 
+extension EnvironmentValues {
+    /// Freezes the kit's loops (`workingPulse`) for tiles that are only looked at: Settings previews, galleries.
+    @Entry var tileIsStill = false
+}
+
 private struct PulseModifier: ViewModifier {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.tileIsStill) private var isStill
     let isActive: Bool
 
     func body(content: Content) -> some View {
-        if isActive, !reduceMotion {
+        if isActive, !reduceMotion, !isStill {
             content.phaseAnimator([1.0, 0.45]) { view, opacity in
                 view.opacity(opacity)
             } animation: { _ in
