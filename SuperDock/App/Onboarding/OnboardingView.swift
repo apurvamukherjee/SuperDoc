@@ -132,7 +132,8 @@ struct OnboardingView: View {
         switch step {
         case .welcome: OnboardingWelcomeStep(entered: entered)
         case .placement: OnboardingPlacementStep(position: position, select: select)
-        case .accessibility: OnboardingAccessibilityStep(trusted: trusted, spins: spins)
+        case .accessibility:
+            OnboardingAccessibilityStep(trusted: trusted, spins: spins, standalone: onAccessGranted != nil)
         case .starter: OnboardingStarterStep(starter: $starter, celebrating: celebrating)
         }
     }
