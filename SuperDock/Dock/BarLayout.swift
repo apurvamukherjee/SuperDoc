@@ -53,6 +53,8 @@ struct BarLayout: View {
     var isDropTargeted = false
 
     @State private var drag: BarDrag?
+    /// Tiles already on the bar; anything else is landing and staggers in after the others that land with it.
+    @State private var settledIDs: Set<UUID> = []
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private static let space = "bar"
@@ -81,6 +83,8 @@ struct BarLayout: View {
             }
             ForEach(items) { tile($0) }
         }
+        .onAppear { settledIDs = Set(items.map(\.id)) }
+        .onChange(of: items.map(\.id)) { _, ids in settledIDs = Set(ids) }
         .padding(spacing)
         .coordinateSpace(name: Self.space)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -125,6 +129,17 @@ struct BarLayout: View {
             .contextMenu { menu(item) }
             .accessibilityAction(named: "Move Earlier") { step(item.id, by: -1) }
             .accessibilityAction(named: "Move Later") { step(item.id, by: 1) }
+            .transition(landing(item.id))
+    }
+
+    /// New tiles drop in 60 ms apart (mockup 09), so a starter set arriving from onboarding lands one by one.
+    /// The rank counts only tiles landing in the same change, so adding one widget later never waits.
+    private func landing(_ id: UUID) -> AnyTransition {
+        let rank = items.filter { !settledIDs.contains($0.id) }.firstIndex { $0.id == id } ?? 0
+        if reduceMotion { return .opacity.animation(Motion.reduced) }
+        return .asymmetric(insertion: .scale(scale: 0.7).combined(with: .opacity).combined(with: .offset(y: 10)),
+                           removal: .opacity)
+            .animation(Motion.pop.delay(Double(rank) * 0.06))
     }
 
     /// Glass tiles are see-through; lifted over a neighbour they need a solid card or both read as one smear.

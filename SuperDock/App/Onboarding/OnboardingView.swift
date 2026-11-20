@@ -183,6 +183,9 @@ struct OnboardingView: View {
     }
 
     private func openAccessibilitySettings() {
+        // The prompt option is what adds SuperDock to the Accessibility list; without it the pane can open with
+        // nothing to switch on. The key is spelled out because the kAX constant isn't concurrency-safe in Swift 6.
+        _ = AXIsProcessTrustedWithOptions(["AXTrustedCheckOptionPrompt": true] as CFDictionary)
         guard let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") else { return }
         NSWorkspace.shared.open(url)
     }
