@@ -59,6 +59,7 @@ sign --preserve-metadata=entitlements "$SPARKLE/XPCServices/Downloader.xpc"
 sign "$SPARKLE/Autoupdate"
 sign "$SPARKLE/Updater.app"
 sign "$APP/Contents/Frameworks/Sparkle.framework"
+sign "$APP/Contents/Frameworks/MediaRemoteAdapter.framework"
 sign --entitlements SuperDock/Resources/SuperDock.entitlements "$APP"
 codesign --verify --deep --strict "$APP"
 

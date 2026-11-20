@@ -4,13 +4,13 @@ import os
 
 private let log = Logger(subsystem: "dev.superdock.SuperDock", category: "now-playing")
 
-// ponytail: no state until the player next changes track or play/pause; an AppleScript query on launch would need
-// Automation permission per player.
-/// What's playing in Music or Spotify.
+/// What's playing, in any app.
 ///
-/// MediaRemote (the private framework behind Control Center) returns nothing to third-party apps since macOS 15.4,
-/// so this listens to the track-change broadcasts Music and Spotify post themselves. Free, no permission prompt.
-/// Controls send the hardware media keys, so they also reach browsers and any other player.
+/// MediaRemote (the private framework behind Control Center) returns nothing to third-party apps since macOS 15.4, so
+/// while a tile is subscribed this runs the bundled mediaremote-adapter, which covers every player (YouTube Music in
+/// Chrome, Safari tabs, Podcasts…). If the adapter can't run, it falls back to the track-change broadcasts Music and
+/// Spotify post themselves. Controls send the hardware media keys, which reach any player.
+/// ponytail: the fallback has no state until the player next changes track or play/pause.
 @MainActor @Observable
 final class NowPlayingService {
     static let shared = NowPlayingService()
@@ -56,6 +56,10 @@ final class NowPlayingService {
         ("com.spotify.client.PlaybackStateChanged", "com.spotify.client")
     ]
     @ObservationIgnored private var observers: [NSObjectProtocol] = []
+    @ObservationIgnored private var adapter: NowPlayingAdapter?
+    @ObservationIgnored private var subscribers = 0
+    /// The artwork the adapter last sent, so an unchanged image isn't decoded again on every update.
+    @ObservationIgnored private var adapterArtwork: String?
 
     private init() {
         for (name, bundleID) in Self.sources {
@@ -66,9 +70,53 @@ final class NowPlayingService {
                 let track = Self.track(from: info, bundleID: bundleID)
                 // Spotify reports its position; Music doesn't, so `update` asks it.
                 let reported = info["Playback Position"] as? Double
-                MainActor.assumeIsolated { self?.update(track, reportedPosition: reported) }
+                MainActor.assumeIsolated {
+                    guard let self, self.adapter == nil else { return }
+                    self.update(track, reportedPosition: reported)
+                }
             })
         }
+    }
+
+    /// Tiles call these on appear/disappear; the adapter process only runs while one is on screen.
+    func subscribe() {
+        subscribers += 1
+        guard subscribers == 1 else { return }
+        do {
+            adapter = try NowPlayingAdapter(onPayload: { [weak self] payload in
+                Task { @MainActor in self?.apply(payload) }
+            }, onExit: { [weak self] in
+                Task { @MainActor in self?.adapter = nil }
+            })
+        } catch {
+            log.error("mediaremote-adapter unavailable, using Music/Spotify broadcasts: \(String(describing: error))")
+        }
+    }
+
+    func unsubscribe() {
+        subscribers = max(subscribers - 1, 0)
+        guard subscribers == 0 else { return }
+        adapter?.stop()
+        adapter = nil
+    }
+
+    private func apply(_ payload: NowPlayingPayload?) {
+        guard let payload else {
+            (track, position, artwork, artworkColors, adapterArtwork) = (nil, nil, nil, [], nil)
+            return
+        }
+        let new = Track(title: payload.title, artist: payload.artist, album: payload.album, isPlaying: payload.isPlaying,
+                        bundleID: payload.bundleID, duration: payload.duration)
+        let sameTrack = new.title == track?.title && new.bundleID == track?.bundleID
+        track = new
+        position = payload.elapsed.map { Position(seconds: $0, date: payload.elapsedAt ?? .now) }
+        // Artwork often arrives a moment after the title; until then keep the last image if the track hasn't changed.
+        if payload.artworkBase64 == nil, sameTrack { return }
+        guard payload.artworkBase64 != adapterArtwork else { return }
+        adapterArtwork = payload.artworkBase64
+        let image = payload.artworkBase64.flatMap { Data(base64Encoded: $0) }.flatMap(NSImage.init(data:))
+        artwork = image
+        artworkColors = image.map(Self.cornerColors) ?? []
     }
 
     private func update(_ new: Track?, reportedPosition: Double?) {

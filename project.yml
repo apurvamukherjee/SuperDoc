@@ -25,6 +25,15 @@ targets:
     sources:
       - path: SuperDock
         excludes: ["Resources/Info.plist"]   # merged into the generated Info.plist, not copied as a resource
+      # Now Playing for every player (macOS 15.4+ locks MediaRemote): run by /usr/bin/perl, never linked.
+      # Rebuild with scripts/build-mediaremote-adapter.sh.
+      - path: Vendor/MediaRemoteAdapter/MediaRemoteAdapter.framework
+        buildPhase:
+          copyFiles:
+            destination: frameworks
+        attributes: [CodeSignOnCopy]
+      - path: Vendor/MediaRemoteAdapter/mediaremote-adapter.pl
+        buildPhase: resources
     dependencies:
       - package: Sparkle
     entitlements:
@@ -72,6 +81,7 @@ targets:
       - SuperDock/Widgets/Core/JSONFile.swift
       - SuperDock/Clipboard/ClipboardModel.swift
       - SuperDock/Services/WeatherService.swift
+      - SuperDock/Services/NowPlayingAdapter.swift
       - SuperDock/Widgets/Time/TimeMath.swift
       - SuperDock/Dock/DockReplacement.swift
       - SuperDock/Plugins/PluginManifest.swift

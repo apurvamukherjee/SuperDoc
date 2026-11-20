@@ -22,6 +22,12 @@ private struct NowPlayingTile: View {
     private let service = NowPlayingService.shared
 
     var body: some View {
+        content
+            .onAppear { service.subscribe() }
+            .onDisappear { service.unsubscribe() }
+    }
+
+    @ViewBuilder private var content: some View {
         if let track = service.track, track.isPlaying, track.duration != nil, service.position != nil {
             // Ticks only while something plays; paused or unknown length, the tile rests.
             TimelineView(.periodic(from: .now, by: 1)) { context in
