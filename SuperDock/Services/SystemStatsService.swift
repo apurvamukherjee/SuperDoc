@@ -22,6 +22,7 @@ final class SystemStatsService {
         var isCharging: Bool
         var isOnPower: Bool
         var minutesRemaining: Int?    // nil while macOS is still estimating
+        var minutesToFull: Int?       // nil unless charging and estimated
     }
 
     enum MemoryPressure { case normal, warning, critical }
@@ -41,15 +42,28 @@ final class SystemStatsService {
     struct Disk: Equatable {
         var available: Int64
         var total: Int64
+        /// Space macOS frees on demand (caches, local snapshots); already counted in `available`.
+        var purgeable: Int64 = 0
+        var name: String?
+    }
+
+    /// Busy share of each core type, 0...1.
+    struct CPUClusters: Equatable {
+        var performance: Double
+        var efficiency: Double
     }
 
     /// 0...1, nil until two samples exist.
     private(set) var cpuUsage: Double?
     private(set) var cpuHistory: [Double] = []
+    /// nil on Intel Macs, which have one kind of core.
+    private(set) var cpuClusters: CPUClusters?
     private(set) var memory: Memory?
     /// Bytes per second, nil until two samples exist.
     private(set) var download: Double?
     private(set) var upload: Double?
+    private(set) var downloadHistory: [Double] = []
+    private(set) var uploadHistory: [Double] = []
     private(set) var disk: Disk?
     /// nil on Macs without a battery.
     private(set) var battery: Battery?
@@ -61,7 +75,7 @@ final class SystemStatsService {
     @ObservationIgnored private var subscribers: [Metric: Int] = [:]
     @ObservationIgnored private var timer: Timer?
     @ObservationIgnored private var tick = 0
-    @ObservationIgnored private var previousTicks: [UInt32]?
+    @ObservationIgnored private var previousTicks: [[UInt32]]?
     @ObservationIgnored private var previousBytes: ByteCounters?
     // mach_host_self() adds a port reference on every call, so take one and keep it.
     @ObservationIgnored private let host = mach_host_self()
@@ -119,23 +133,47 @@ final class SystemStatsService {
     // MARK: CPU
 
     private func sampleCPU() {
-        var info = host_cpu_load_info()
-        var count = mach_msg_type_number_t(MemoryLayout<host_cpu_load_info>.size / MemoryLayout<integer_t>.size)
-        let result = withUnsafeMutablePointer(to: &info) {
-            $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) { host_statistics(host, HOST_CPU_LOAD_INFO, $0, &count) }
+        var cpuCount: natural_t = 0
+        var info: processor_info_array_t?
+        var infoCount: mach_msg_type_number_t = 0
+        let result = host_processor_info(host, PROCESSOR_CPU_LOAD_INFO, &cpuCount, &info, &infoCount)
+        guard result == KERN_SUCCESS, let info else { return log.error("host_processor_info failed: \(result)") }
+        defer {
+            vm_deallocate(mach_task_self_, vm_address_t(bitPattern: info), vm_size_t(Int(infoCount) * MemoryLayout<integer_t>.stride))
         }
-        guard result == KERN_SUCCESS else { return log.error("host_statistics failed: \(result)") }
-        // Ticks are cumulative since boot, so usage is the share of non-idle ticks since the last sample.
-        let ticks = [info.cpu_ticks.0, info.cpu_ticks.1, info.cpu_ticks.2, info.cpu_ticks.3]
+        let states = Int(CPU_STATE_MAX)
+        let ticks = (0..<Int(cpuCount)).map { cpu in (0..<states).map { UInt32(bitPattern: info[cpu * states + $0]) } }
         defer { previousTicks = ticks }
-        guard let previousTicks else { return }
-        let deltas = zip(ticks, previousTicks).map { Double($0 &- $1) }
-        let total = deltas.reduce(0, +)
-        guard total > 0 else { return }
-        let usage = 1 - deltas[Int(CPU_STATE_IDLE)] / total
-        cpuUsage = usage
-        cpuHistory = Array((cpuHistory + [usage]).suffix(Self.historyLength))
+        guard let previousTicks, previousTicks.count == ticks.count else { return }
+        // Ticks are cumulative since boot, so usage is the share of non-idle ticks since the last sample.
+        let cores = zip(ticks, previousTicks).map { now, before in
+            let deltas = zip(now, before).map { Double($0 &- $1) }
+            let total = deltas.reduce(0, +)
+            return (busy: total - deltas[Int(CPU_STATE_IDLE)], total: total)
+        }
+        func usage(_ slice: ArraySlice<(busy: Double, total: Double)>) -> Double? {
+            let total = slice.reduce(0) { $0 + $1.total }
+            return total > 0 ? slice.reduce(0) { $0 + $1.busy } / total : nil
+        }
+        guard let overall = usage(cores[...]) else { return }
+        cpuUsage = overall
+        cpuHistory = Array((cpuHistory + [overall]).suffix(Self.historyLength))
+        if let efficiency = Self.efficiencyCoreCount, efficiency < cores.count {
+            cpuClusters = CPUClusters(performance: usage(cores[efficiency...]) ?? 0, efficiency: usage(cores[..<efficiency]) ?? 0)
+        }
     }
+
+    /// ponytail: assumes efficiency cores are logical CPUs 0..<n, true on M1–M4 (checked against IORegistry
+    /// `cluster-type`); read `cluster-type` per CPU if a chip breaks that.
+    private static let efficiencyCoreCount: Int? = {
+        func read(_ name: String) -> Int? {
+            var value: Int32 = 0
+            var size = MemoryLayout<Int32>.size
+            return sysctlbyname(name, &value, &size, nil, 0) == 0 ? Int(value) : nil
+        }
+        guard read("hw.nperflevels") == 2, let count = read("hw.perflevel1.logicalcpu"), count > 0 else { return nil }
+        return count
+    }()
 
     // MARK: Memory
 
@@ -181,6 +219,8 @@ final class SystemStatsService {
         // Counters are 32-bit per interface and can wrap or reset (interface down); treat a drop as no traffic.
         download = received >= previous.received ? Double(received - previous.received) / seconds : 0
         upload = sent >= previous.sent ? Double(sent - previous.sent) / seconds : 0
+        downloadHistory = Array((downloadHistory + [download ?? 0]).suffix(Self.historyLength))
+        uploadHistory = Array((uploadHistory + [upload ?? 0]).suffix(Self.historyLength))
     }
 
     // MARK: Disk
@@ -188,9 +228,13 @@ final class SystemStatsService {
     private func sampleDisk() {
         do {
             let values = try URL(fileURLWithPath: "/").resourceValues(
-                forKeys: [.volumeAvailableCapacityForImportantUsageKey, .volumeTotalCapacityKey]
+                forKeys: [.volumeAvailableCapacityForImportantUsageKey, .volumeAvailableCapacityKey, .volumeTotalCapacityKey,
+                          .volumeLocalizedNameKey]
             )
-            disk = Disk(available: values.volumeAvailableCapacityForImportantUsage ?? 0, total: Int64(values.volumeTotalCapacity ?? 0))
+            let available = values.volumeAvailableCapacityForImportantUsage ?? 0
+            disk = Disk(available: available, total: Int64(values.volumeTotalCapacity ?? 0),
+                        purgeable: max(available - Int64(values.volumeAvailableCapacity ?? Int(available)), 0),
+                        name: values.volumeLocalizedName)
         } catch {
             log.error("Disk capacity unavailable: \(error)")
         }
@@ -227,11 +271,13 @@ final class SystemStatsService {
                   let current = description[kIOPSCurrentCapacityKey] as? Int,
                   let max = description[kIOPSMaxCapacityKey] as? Int, max > 0 else { continue }
             let minutes = description[kIOPSTimeToEmptyKey] as? Int   // -1 while estimating
+            let toFull = description[kIOPSTimeToFullChargeKey] as? Int
             battery = Battery(
                 level: Double(current) / Double(max),
                 isCharging: description[kIOPSIsChargingKey] as? Bool ?? false,
                 isOnPower: description[kIOPSPowerSourceStateKey] as? String == kIOPSACPowerValue,
-                minutesRemaining: minutes.flatMap { $0 > 0 ? $0 : nil }
+                minutesRemaining: minutes.flatMap { $0 > 0 ? $0 : nil },
+                minutesToFull: toFull.flatMap { $0 > 0 ? $0 : nil }
             )
             return
         }
