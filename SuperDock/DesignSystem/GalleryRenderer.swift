@@ -34,7 +34,7 @@ enum GalleryRenderer {
             ("weather", GallerySheets.weather), ("media-controls", GallerySheets.mediaControls),
             ("files-productivity", GallerySheets.filesProductivity), ("dev-fun-plugins", GallerySheets.devFunPlugins),
             ("bar", GallerySheets.bar), ("limo", GallerySheets.limo), ("settings", GallerySheets.settings),
-            ("surfaces", GallerySheets.surfaces)
+            ("surfaces", GallerySheets.surfaces), ("onboarding", GallerySheets.onboarding)
         ]
         for (name, sheet) in owned {
             if let sheet { try write(sheet, name: "sheet-\(name)", to: directory) }
