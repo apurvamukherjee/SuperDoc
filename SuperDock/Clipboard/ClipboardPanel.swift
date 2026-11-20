@@ -10,12 +10,25 @@ final class ClipboardPanel {
         var query = ""
         var filter: ClipItem.Kind?
         var selection = 0
+        @ObservationIgnored let items: @MainActor () -> [ClipItem]
+        /// Only the time of the last concealed copy is known; its content was never read.
+        @ObservationIgnored let protectedAt: @MainActor () -> Date?
+
+        init(items: @escaping @MainActor () -> [ClipItem] = { ClipboardStore.shared.items },
+             protectedAt: @escaping @MainActor () -> Date? = { ClipboardService.shared.lastConcealedCopy }) {
+            self.items = items
+            self.protectedAt = protectedAt
+        }
 
         var results: [ClipItem] {
-            ClipboardStore.shared.items.filter { item in
+            items().filter { item in
                 (filter == nil || item.kind == filter)
                     && (query.isEmpty || item.summary.localizedCaseInsensitiveContains(query))
             }
+        }
+
+        var pinned: [ClipItem] {
+            items().filter { $0.pinnedSlot != nil }.sorted { ($0.pinnedSlot ?? 0) < ($1.pinnedSlot ?? 0) }
         }
     }
 
@@ -38,7 +51,7 @@ final class ClipboardPanel {
         model.selection = 0
         let screen = NSScreen.screens.first { $0.frame.contains(NSEvent.mouseLocation) } ?? NSScreen.main
         let area = screen?.visibleFrame ?? .zero
-        panel.show(ClipboardHistoryView(model: model) { [weak self] item in self?.choose(item) }) { size in
+        panel.show(ClipboardHistoryView(model: model, now: Date()) { [weak self] item in self?.choose(item) }) { size in
             // Upper third of the screen, like Spotlight.
             NSPoint(x: area.midX - size.width / 2, y: area.maxY - size.height - area.height / 6)
         }
@@ -84,72 +97,148 @@ final class ClipboardPanel {
     }
 }
 
-private struct ClipboardHistoryView: View {
+struct ClipboardHistoryView: View {
+    let model: ClipboardPanel.Model
+    let now: Date
+    let onChoose: (ClipItem) -> Void
+
+    var body: some View {
+        HistoryContent(model: model, now: now, onChoose: onChoose).surfaceContext()
+    }
+}
+
+private struct HistoryContent: View {
+    @Environment(\.tile) private var tile
+    @Environment(\.surfaceSnapshot) private var snapshot
     @Bindable var model: ClipboardPanel.Model
+    let now: Date
     let onChoose: (ClipItem) -> Void
     @FocusState private var searchFocused: Bool
 
     var body: some View {
-        VStack(spacing: 8) {
-            TextField("Search clipboard", text: $model.query)
-                .textFieldStyle(.plain)
-                .font(.title3)
-                .focused($searchFocused)
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("Clipboard").tileStyle(.value)
+                Spacer()
+                KeyCap("⌥⌘V")
+            }
+            SurfaceSearchField(prompt: "Search copies", text: $model.query, focus: $searchFocused)
                 .onChange(of: model.query) { model.selection = 0 }
-            Picker("Type", selection: $model.filter) {
-                Text("All").tag(ClipItem.Kind?.none)
-                ForEach(ClipItem.Kind.allCases, id: \.self) { Text($0.title).tag(ClipItem.Kind?.some($0)) }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .onChange(of: model.filter) { model.selection = 0 }
-            Divider()
-            ScrollViewReader { proxy in
-                ScrollView {
-                    LazyVStack(spacing: 2) {
-                        ForEach(Array(model.results.enumerated()), id: \.element.id) { index, item in
-                            ClipRow(item: item, isSelected: index == model.selection)
-                                .id(item.id)
-                                .onTapGesture { onChoose(item) }
+            filters
+            if model.results.isEmpty, !showsProtected {
+                empty
+            } else if snapshot != nil {
+                list.frame(minHeight: 0, maxHeight: .infinity, alignment: .top).clipped()
+            } else {
+                ScrollViewReader { proxy in
+                    ScrollView { list }
+                        .onChange(of: model.selection) {
+                            if model.results.indices.contains(model.selection) {
+                                proxy.scrollTo(model.results[model.selection].id)
+                            }
                         }
-                    }
-                }
-                .onChange(of: model.selection) {
-                    if model.results.indices.contains(model.selection) { proxy.scrollTo(model.results[model.selection].id) }
                 }
             }
-            if model.results.isEmpty {
-                Text(ClipboardStore.shared.items.isEmpty ? "Copy something and it'll show up here." : "No matches")
-                    .foregroundStyle(.secondary).frame(maxHeight: .infinity)
+            if !model.pinned.isEmpty { pinned }
+        }
+        .padding(14)
+        .frame(width: 440, height: 480)
+        .surfacePanel(radius: 20)
+        .surfacePop(from: 0.96, anchor: .top)
+        .onAppear { searchFocused = true }
+    }
+
+    private var showsProtected: Bool {
+        model.protectedAt() != nil && model.filter == nil && model.query.isEmpty
+    }
+
+    private var filters: some View {
+        HStack(spacing: 6) {
+            chip(String(localized: "All"), kind: nil)
+            ForEach(ClipItem.Kind.allCases, id: \.self) { chip($0.title, kind: $0) }
+        }
+    }
+
+    private func chip(_ title: String, kind: ClipItem.Kind?) -> some View {
+        let selected = model.filter == kind
+        return Button {
+            model.filter = kind
+            model.selection = 0
+        } label: {
+            Text(title)
+                .font(tile.font(.body).weight(.medium))
+                .foregroundStyle(selected ? tile.surface.controlOnInk : tile.surface.primary)
+                .padding(.horizontal, 11)
+                .padding(.vertical, 5)
+                .background(selected ? tile.surface.controlOn : tile.surface.controlFill, in: Capsule())
+        }
+        .buttonStyle(TilePressStyle())
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    private var list: some View {
+        LazyVStack(spacing: 2) {
+            ForEach(Array(model.results.enumerated()), id: \.element.id) { index, item in
+                ClipRow(item: item, detail: item.detail(now: now), isSelected: index == model.selection)
+                    .id(item.id)
+                    .onTapGesture { onChoose(item) }
+            }
+            if showsProtected { ProtectedRow() }
+        }
+    }
+
+    private var empty: some View {
+        VStack(spacing: 8) {
+            LimoFace().frame(width: 34, height: 34)
+            Text(model.items().isEmpty ? "Copy something and it'll show up here." : "No matches").tileStyle(.detail)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var pinned: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Rectangle().fill(tile.surface.divider).frame(height: 1)
+            Text("Pinned").tileStyle(.label)
+            HStack(spacing: 6) {
+                ForEach(model.pinned.prefix(3)) { item in
+                    Button { onChoose(item) } label: {
+                        HStack(spacing: 6) {
+                            KeyCap("⌃⌥⌘\(item.pinnedSlot ?? 0)")
+                            Text(item.summary).font(tile.font(.body).weight(.medium)).foregroundStyle(tile.surface.primary)
+                                .lineLimit(1)
+                        }
+                        .padding(.leading, 4)
+                        .padding(.trailing, 10)
+                        .padding(.vertical, 4)
+                        .background(tile.surface.chipFill, in: Capsule())
+                    }
+                    .buttonStyle(TilePressStyle())
+                    .accessibilityLabel("Paste pinned item \(item.pinnedSlot ?? 0): \(item.summary)")
+                }
             }
         }
-        .padding(12)
-        .frame(width: 460, height: 440)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .onAppear { searchFocused = true }
     }
 }
 
 private struct ClipRow: View {
+    @Environment(\.tile) private var tile
     let item: ClipItem
+    let detail: String
     let isSelected: Bool
 
     var body: some View {
         HStack(spacing: 10) {
-            ClipThumbnail(item: item, size: 32)
+            ClipThumbnail(item: item, size: 30)
             VStack(alignment: .leading, spacing: 2) {
-                Text(item.summary).lineLimit(2).truncationMode(.tail)
-                Text(item.date, format: .relative(presentation: .named)).font(.caption2).foregroundStyle(.secondary)
+                Text(item.summary).tileStyle(looksLikeCode ? .mono : .title).truncationMode(.tail)
+                Text(detail).tileStyle(.detail)
             }
-            Spacer()
-            if let slot = item.pinnedSlot {
-                Text("⌃⌥⌘\(slot)").font(.caption.monospaced()).foregroundStyle(.secondary)
-                    .accessibilityLabel("Pinned to slot \(slot)")
-            }
+            Spacer(minLength: 0)
+            if isSelected { KeyCap("↩") }
         }
-        .padding(6)
-        .background(isSelected ? AnyShapeStyle(.tint.opacity(0.3)) : AnyShapeStyle(.clear),
-                    in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(isSelected ? tile.surface.controlFill : .clear, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
         .contentShape(Rectangle())
         .contextMenu {
             Menu("Pin to Slot") {
@@ -163,5 +252,29 @@ private struct ClipRow: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isButton)
+    }
+
+    /// Commands and snippets read better in SF Mono; prose (anything with sentence punctuation) stays proportional.
+    private var looksLikeCode: Bool {
+        guard item.kind == .text, let text = item.text, !text.contains("\n") else { return false }
+        return ![", ", ". ", "! ", "? "].contains { text.contains($0) } && !text.hasSuffix("!")
+    }
+}
+
+/// Stands in for a password-manager copy: it's acknowledged, never stored, never pasteable.
+private struct ProtectedRow: View {
+    var body: some View {
+        HStack(spacing: 10) {
+            SurfaceGlyph(symbol: "lock", size: 30)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Protected item").tileStyle(.title)
+                Text("From a password manager · not saved").tileStyle(.detail)
+            }
+            Spacer(minLength: 0)
+        }
+        .opacity(0.55)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .accessibilityElement(children: .combine)
     }
 }

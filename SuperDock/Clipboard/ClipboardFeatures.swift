@@ -14,7 +14,7 @@ enum ClipboardPrefs {
 /// Copy Peek and the notch shelf.
 @MainActor
 final class ClipboardFeatures {
-    private static let peekDuration: Duration = .milliseconds(1500)
+    private static let peekDuration: Duration = .milliseconds(1200)
     private static let digitKeys = [kVK_ANSI_1, kVK_ANSI_2, kVK_ANSI_3, kVK_ANSI_4, kVK_ANSI_5,
                                     kVK_ANSI_6, kVK_ANSI_7, kVK_ANSI_8, kVK_ANSI_9]
 
@@ -27,7 +27,10 @@ final class ClipboardFeatures {
     private var showsPeek = true
 
     init() {
+        // The peek sits by the cursor; it must never swallow the next click.
+        peekPanel.ignoresMouseEvents = true
         ClipboardService.shared.onCopied = { [weak self] item in self?.peek(item) }
+        ClipboardService.shared.onConcealedCopy = { [weak self] in self?.peek(nil) }
         defaultsObserver = NotificationCenter.default.addObserver(
             forName: UserDefaults.didChangeNotification, object: nil, queue: .main
         ) { [weak self] _ in
@@ -60,8 +63,8 @@ final class ClipboardFeatures {
         }
     }
 
-    /// Copy Peek: a small confirmation of what was just copied, next to the cursor.
-    private func peek(_ item: ClipItem) {
+    /// Copy Peek: a small confirmation of what was just copied, next to the cursor. nil = a concealed copy.
+    private func peek(_ item: ClipItem?) {
         guard showsPeek else { return }
         let mouse = NSEvent.mouseLocation
         peekPanel.show(PeekView(item: item)) { size in NSPoint(x: mouse.x + 12, y: mouse.y - size.height - 12) }
@@ -77,17 +80,86 @@ final class ClipboardFeatures {
     }
 }
 
-private struct PeekView: View {
-    let item: ClipItem
+/// Limo catching the copied card, then the card itself as a chip. Concealed copies say only that nothing was kept.
+struct PeekView: View {
+    let item: ClipItem?
 
     var body: some View {
-        HStack(spacing: 8) {
-            ClipThumbnail(item: item, size: 28)
-            Text(item.summary).font(.callout).lineLimit(2).frame(maxWidth: 260, alignment: .leading)
+        PeekContent(item: item).surfaceContext()
+    }
+}
+
+private struct PeekContent: View {
+    @Environment(\.tile) private var tile
+    let item: ClipItem?
+
+    var body: some View {
+        HStack(spacing: 9) {
+            LimoCatch().frame(width: 30, height: 30)
+            if let item {
+                chip(item)
+                Text("copied").tileStyle(.detail)
+            } else {
+                Image(systemName: "lock.fill").font(.system(size: 11, weight: .semibold)).foregroundStyle(tile.surface.secondary)
+                Text("Protected · not saved").tileStyle(.detail)
+            }
         }
-        .padding(8)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("Copied: \(item.summary)")
+        .padding(.leading, 7)
+        .padding(.trailing, 16)
+        .padding(.vertical, 6)
+        .surfacePanel(radius: 22)
+        .surfacePop(from: 0.8, anchor: .topLeading)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(item.map { String(localized: "Copied: \($0.summary)") } ?? String(localized: "Protected item, not saved"))
+    }
+
+    private func chip(_ item: ClipItem) -> some View {
+        HStack(spacing: 6) {
+            switch item.kind {
+            case .color, .image:
+                ClipThumbnail(item: item, size: item.kind == .color ? 14 : 22)
+            case .file:
+                Image(nsImage: SurfaceKit.icon(for: item.fileURLs.first ?? URL(fileURLWithPath: "/")))
+                    .resizable().frame(width: 18, height: 18)
+            case .text, .link:
+                EmptyView()
+            }
+            Text(chipText(item)).tileStyle(item.kind == .file || item.kind == .image ? .title : .mono)
+                .truncationMode(.middle)
+                .frame(maxWidth: 240, alignment: .leading)
+                .fixedSize(horizontal: true, vertical: false)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(tile.surface.controlFill, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+    }
+
+    private func chipText(_ item: ClipItem) -> String {
+        switch item.kind {
+        case .link: URL(string: item.text ?? "")?.host() ?? item.summary
+        case .text: String(item.summary.prefix(40))
+        case .color, .image, .file: item.summary
+        }
+    }
+}
+
+/// Limo with a little paper card in its arms.
+private struct LimoCatch: View {
+    var body: some View {
+        LimoFace(snoring: false)
+            .overlay(alignment: .top) {
+                RoundedRectangle(cornerRadius: 2, style: .continuous)
+                    .fill(.white)
+                    .overlay(alignment: .top) {
+                        VStack(spacing: 1.5) {
+                            ForEach(0..<3, id: \.self) { _ in Capsule().fill(Palette.ink.opacity(0.35)).frame(height: 1) }
+                        }
+                        .padding(2.5)
+                    }
+                    .frame(width: 13, height: 10)
+                    .rotationEffect(.degrees(-10))
+                    .offset(x: -2, y: -5)
+            }
+            .accessibilityHidden(true)
     }
 }

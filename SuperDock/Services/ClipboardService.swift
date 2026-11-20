@@ -14,6 +14,10 @@ final class ClipboardService {
 
     /// Fires for copies made in other apps (not for SuperDock re-copying a history item). Copy Peek listens.
     var onCopied: ((ClipItem) -> Void)?
+    /// Fires when a password manager copies something. Nothing about it is read or kept; Copy Peek just says so.
+    var onConcealedCopy: (() -> Void)?
+    /// When the last concealed copy happened, for the history's "Protected item" row. Only the time is kept.
+    private(set) var lastConcealedCopy: Date?
 
     private let store = ClipboardStore.shared
     private var timer: Timer?
@@ -37,6 +41,11 @@ final class ClipboardService {
         let pasteboard = NSPasteboard.general
         guard pasteboard.changeCount != lastChangeCount else { return }
         lastChangeCount = pasteboard.changeCount
+        if pasteboard.types?.contains(ClipboardCapture.concealedType) == true {
+            lastConcealedCopy = Date()
+            onConcealedCopy?()
+            return
+        }
         guard let content = ClipboardCapture.read(pasteboard),
               let item = store.add(content, sourceApp: NSWorkspace.shared.frontmostApplication?.bundleIdentifier) else { return }
         if pasteboard.changeCount != ownChangeCount { onCopied?(item) }

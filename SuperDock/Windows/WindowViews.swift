@@ -29,68 +29,68 @@ final class OverlayPanel: NSPanel {
     }
 }
 
-/// Thumbnail (or app icon) + title, with minimize/close on hover.
-struct WindowCard: View {
+/// What window cards draw from, so previews and the gallery can feed fixtures instead of live captures.
+struct WindowImages {
+    var thumbnails: [CGWindowID: CGImage]
+    var icon: @MainActor (WindowInfo) -> NSImage?
+
+    @MainActor static var live: WindowImages {
+        WindowImages(thumbnails: ThumbnailService.shared.images) { window in
+            NSRunningApplication(processIdentifier: window.pid)?.bundleURL.map(IconProvider.icon(for:))
+        }
+    }
+}
+
+/// A window thumbnail (or its app icon on a soft well), ringed when selected, with minimize/close on hover.
+struct WindowThumb: View {
+    @Environment(\.tile) private var tile
     let window: WindowInfo
+    let images: WindowImages
     var isSelected = false
-    var isFrozen = false
-    let thumbnailHeight: CGFloat
+    /// Dock previews ring the card under the cursor; the switcher rings only its selection.
+    var ringsOnHover = false
+    let size: CGSize
     let onSelect: () -> Void
 
     @State private var isHovering = false
-    private let thumbnails = ThumbnailService.shared
 
     var body: some View {
-        VStack(spacing: 6) {
-            ZStack(alignment: .topTrailing) {
-                thumbnail
-                    .frame(width: thumbnailHeight * 4 / 3, height: thumbnailHeight)
-                if isHovering {
-                    HStack(spacing: 4) {
-                        control("minus", label: "Minimize") { WindowService.shared.minimize(window) }
-                        control("xmark", label: "Close") { WindowService.shared.close(window) }
-                    }
-                    .padding(4)
+        let shape = RoundedRectangle(cornerRadius: 10, style: .continuous)
+        ZStack(alignment: .topTrailing) {
+            thumbnail.frame(width: size.width, height: size.height).clipShape(shape)
+            if isHovering {
+                HStack(spacing: 4) {
+                    SurfaceDiscButton(symbol: "minus", label: "Minimize") { WindowService.shared.minimize(window) }
+                    SurfaceDiscButton(symbol: "xmark", label: "Close") { WindowService.shared.close(window) }
                 }
+                .padding(6)
+                .transition(.opacity)
             }
-            HStack(spacing: 4) {
-                if isFrozen {
-                    Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
-                        .help("Not responding")
-                        .accessibilityLabel("Not responding")
-                }
-                Text(window.title).font(.caption).lineLimit(1).truncationMode(.middle)
-            }
-            .frame(width: thumbnailHeight * 4 / 3)
         }
-        .padding(8)
-        .background(isSelected ? AnyShapeStyle(.tint.opacity(0.35)) : AnyShapeStyle(.clear),
-                    in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-        .contentShape(Rectangle())
+        .overlay {
+            if isSelected || (ringsOnHover && isHovering) {
+                shape.strokeBorder(tile.surface.primary, lineWidth: 2.5).padding(-3)
+            }
+        }
+        .contentShape(shape)
         .onTapGesture(perform: onSelect)
-        .onHover { isHovering = $0 }
-        .accessibilityElement(children: .combine)
+        .onHover { hovering in withAnimation(Motion.press) { isHovering = hovering } }
+        .accessibilityElement(children: .contain)
         .accessibilityLabel("\(window.appName): \(window.title)")
         .accessibilityAddTraits(.isButton)
     }
 
     @ViewBuilder
     private var thumbnail: some View {
-        if let image = thumbnails.images[window.id] {
-            Image(decorative: image, scale: 2).resizable().scaledToFit()
-                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+        if let image = images.thumbnails[window.id] {
+            Image(decorative: image, scale: 2).resizable().scaledToFill()
         } else {
-            Image(nsImage: NSRunningApplication(processIdentifier: window.pid)?.bundleURL.map(IconProvider.icon(for:)) ?? NSImage())
-                .resizable().scaledToFit().padding(thumbnailHeight / 5)
+            ZStack {
+                tile.surface.controlFill
+                if let icon = images.icon(window) {
+                    Image(nsImage: icon).resizable().scaledToFit().frame(width: size.height * 0.5, height: size.height * 0.5)
+                }
+            }
         }
-    }
-
-    private func control(_ symbol: String, label: LocalizedStringKey, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: symbol).font(.caption2.weight(.bold)).frame(width: 18, height: 18)
-                .background(.regularMaterial, in: Circle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(label)
     }
 }

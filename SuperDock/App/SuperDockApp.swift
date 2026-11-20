@@ -21,10 +21,14 @@ private struct MenuContent: View {
     private let store = LayoutStore.shared
 
     var body: some View {
-        Picker("Profile", selection: Binding(get: { store.activeProfile.id }, set: { store.activate($0) })) {
-            ForEach(store.profiles) { Text($0.name).tag($0.id) }
+        // Section headers are plain text in an NSMenu; the agents/limit summary rides along when there's data.
+        Section(MenuStatus.title(sessions: AgentSessionService.shared.sessions, usage: AIUsageService.shared.usage)) {
+            Picker("Profile: \(store.activeProfile.name)",
+                   selection: Binding(get: { store.activeProfile.id }, set: { store.activate($0) })) {
+                ForEach(store.profiles) { Text($0.name).tag($0.id) }
+            }
+            Button("Launchpad") { Launchpad.shared.toggle() }
         }
-        Button("Launchpad") { Launchpad.shared.toggle() }
         Divider()
         Button("Settings…") {
             // Agent apps are never frontmost, so without this the window opens behind other apps.

@@ -65,9 +65,15 @@ final class DockHoverPreviews {
         shownURL = item.url
 
         let frozen = WindowService.shared.frozen.contains(app.processIdentifier)
-        let view = PreviewsView(app: app, windows: windows, frozen: frozen) { [weak self] window in
+        let view = PreviewsView(appName: app.localizedName ?? "", windows: windows, frozen: frozen) { [weak self] window in
             self?.hide()
             WindowService.shared.focus(window)
+        } onQuit: { [weak self] in
+            self?.hide()
+            app.terminate()
+        } onForceQuit: { [weak self] in
+            self?.hide()
+            app.forceTerminate()
         }
         let orientation = BarPlacement.orientation(of: dock.frame, in: dock.visibleFrame)
         panel.show(view) { size in
@@ -103,32 +109,64 @@ final class DockHoverPreviews {
     }
 }
 
-private struct PreviewsView: View {
-    let app: NSRunningApplication
+/// Window cards above a Dock icon, the app's name and window count, and Quit (Force Quit when it's frozen).
+struct PreviewsView: View {
+    let appName: String
     let windows: [WindowInfo]
     let frozen: Bool
+    var fixtureImages: WindowImages?
     let onPick: (WindowInfo) -> Void
+    let onQuit: () -> Void
+    let onForceQuit: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text(app.localizedName ?? "").font(.headline)
-                if frozen {
-                    Label("Not responding", systemImage: "exclamationmark.triangle.fill")
-                        .font(.caption).foregroundStyle(.orange)
-                    Button("Force Quit") { app.forceTerminate() }.controlSize(.small)
+        // `.live` is read here, inside body, so thumbnails fill in as ThumbnailService captures them.
+        PreviewsContent(view: self, images: fixtureImages ?? .live).surfaceContext()
+    }
+}
+
+private struct PreviewsContent: View {
+    @Environment(\.tile) private var tile
+    let view: PreviewsView
+    let images: WindowImages
+
+    private static let thumb = CGSize(width: 136, height: 76)
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 12) {
+                ForEach(view.windows) { window in
+                    VStack(alignment: .leading, spacing: 6) {
+                        WindowThumb(window: window, images: images, ringsOnHover: true, size: Self.thumb) { view.onPick(window) }
+                        Text(window.title).tileStyle(.body).lineLimit(1).frame(width: Self.thumb.width, alignment: .leading)
+                    }
                 }
-                Spacer()
-                Button("Quit") { app.terminate() }.controlSize(.small)
             }
-            .padding(.horizontal, 8)
-            HStack(spacing: 4) {
-                ForEach(windows) { window in
-                    WindowCard(window: window, isFrozen: frozen, thumbnailHeight: 100) { onPick(window) }
+            HStack(spacing: 8) {
+                if view.frozen {
+                    Label("Not responding", systemImage: "exclamationmark.triangle.fill")
+                        .font(tile.font(.detail).weight(.semibold)).foregroundStyle(tile.surface.warning)
+                } else {
+                    Text(view.windows.count == 1 ? "\(view.appName) · 1 window" : "\(view.appName) · \(view.windows.count) windows")
+                        .tileStyle(.detail)
                 }
+                Spacer(minLength: 8)
+                if view.frozen { pill("Force Quit", tint: tile.surface.danger, action: view.onForceQuit) }
+                pill("Quit", tint: tile.surface.primary, action: view.onQuit)
             }
         }
-        .padding(10)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .fixedSize()
+        .padding(12)
+        .surfacePanel(radius: 18)
+        .surfacePop(from: 0.9, anchor: .bottom)
+    }
+
+    private func pill(_ title: LocalizedStringKey, tint: Color, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title).font(tile.font(.body).weight(.semibold)).foregroundStyle(tint)
+                .padding(.horizontal, 10).padding(.vertical, 3)
+                .background(tile.surface.controlFill, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+        }
+        .buttonStyle(TilePressStyle())
     }
 }
