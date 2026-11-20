@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Label over a big value, with an optional detail line on bigger tiles. Shared by the simple stat widgets.
-struct StatTile: View {
+struct LegacyStatTile: View {
     let label: LocalizedStringKey
     let value: String
     var detail: String?
@@ -31,7 +31,7 @@ struct MemoryWidget: SuperWidget {
     static func view(size: TileSize, settings: Settings) -> some View {
         let memory = SystemStatsService.shared.memory
         let share = memory.map { Double($0.used) / Double(max($0.total, 1)) }
-        return StatTile(label: "RAM", value: share?.formatted(.percent.precision(.fractionLength(0))) ?? "–",
+        return LegacyStatTile(label: "RAM", value: share?.formatted(.percent.precision(.fractionLength(0))) ?? "–",
                         detail: size == .compact ? nil : memory.map { "\($0.used.formatted(bytes)) of \($0.total.formatted(bytes))" },
                         tint: memory?.pressure == .critical ? .red : memory?.pressure == .warning ? .orange : .primary)
             .subscribes(to: .memory)
@@ -69,7 +69,7 @@ struct DiskWidget: SuperWidget {
 
     static func view(size: TileSize, settings: Settings) -> some View {
         let disk = SystemStatsService.shared.disk
-        return StatTile(label: "Free", value: disk.map { $0.available.formatted(.byteCount(style: .file)) } ?? "–",
+        return LegacyStatTile(label: "Free", value: disk.map { $0.available.formatted(.byteCount(style: .file)) } ?? "–",
                         detail: size == .compact ? nil : disk.map { "of \($0.total.formatted(.byteCount(style: .file)))" },
                         tint: (disk.map { Double($0.available) / Double(max($0.total, 1)) } ?? 1) < 0.1 ? .orange : .primary)
             .subscribes(to: .disk)
@@ -94,7 +94,7 @@ struct UptimeWidget: SuperWidget {
 
     static func view(size: TileSize, settings: Settings) -> some View {
         TimelineView(.everyMinute) { context in
-            StatTile(label: "Uptime",
+            LegacyStatTile(label: "Uptime",
                      value: Duration.seconds(context.date.timeIntervalSince(bootDate))
                         .formatted(.units(allowed: [.days, .hours, .minutes], width: .narrow, maximumUnitCount: 2)))
         }

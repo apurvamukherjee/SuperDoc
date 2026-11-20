@@ -15,7 +15,7 @@ struct WorldClockWidget: SuperWidget {
         let zone = TimeZone(identifier: settings.timeZone) ?? .current
         let city = settings.timeZone.split(separator: "/").last.map { $0.replacingOccurrences(of: "_", with: " ") } ?? ""
         return TimelineView(.everyMinute) { context in
-            StatTile(label: LocalizedStringKey(city), value: time(context.date, in: zone),
+            LegacyStatTile(label: LocalizedStringKey(city), value: time(context.date, in: zone),
                      detail: size == .compact ? nil : offset(zone, at: context.date))
         }
     }
@@ -106,7 +106,7 @@ struct UnixTimeWidget: SuperWidget {
 
     static func view(size: TileSize, settings: Settings) -> some View {
         TimelineView(.periodic(from: .distantPast, by: 1)) { context in
-            StatTile(label: "Unix", value: String(Int(context.date.timeIntervalSince1970)))
+            LegacyStatTile(label: "Unix", value: String(Int(context.date.timeIntervalSince1970)))
                 .textSelection(.enabled)
         }
     }
@@ -123,7 +123,7 @@ struct WeekNumberWidget: SuperWidget {
     static func view(size: TileSize, settings: Settings) -> some View {
         TimelineView(.everyMinute) { context in
             // ISO 8601 weeks (Monday start, week 1 contains the first Thursday), the usual "week number".
-            StatTile(label: "Week", value: String(Calendar(identifier: .iso8601).component(.weekOfYear, from: context.date)))
+            LegacyStatTile(label: "Week", value: String(Calendar(identifier: .iso8601).component(.weekOfYear, from: context.date)))
         }
     }
 }

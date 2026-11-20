@@ -1,10 +1,11 @@
 import AppKit
 import SwiftUI
 
-// ponytail: SF Symbol stand-in until the Buddy character is designed (SUPERDOCK.md §12 #2).
+// ponytail: SF Symbol stand-in until the Limo character is drawn (design/mockups/06-limo-character.png).
 /// Pops a small pill above the bar when an agent finishes or needs approval.
 @MainActor
-final class BuddyController {
+final class LimoController {
+    /// Stored under the pre-rename key so existing users keep their choice.
     static let enabledKey = "buddy.alerts"
 
     private static let visibleFor: Duration = .seconds(5)

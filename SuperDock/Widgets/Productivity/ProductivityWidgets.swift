@@ -213,11 +213,11 @@ struct NoteWidget: SuperWidget {
     static let supportedSizes: [TileSize] = [.medium, .wide, .large]
 
     static func view(size: TileSize, settings: Settings) -> some View {
-        NoteTile()
+        LegacyNoteTile()
     }
 }
 
-private struct NoteTile: View {
+private struct LegacyNoteTile: View {
     @AppStorage("productivity.note.text") private var text = ""
 
     var body: some View {
@@ -240,11 +240,11 @@ struct TodoWidget: SuperWidget {
     static let supportedSizes: [TileSize] = [.medium, .wide, .large]
 
     static func view(size: TileSize, settings: Settings) -> some View {
-        TodoTile(size: size)
+        LegacyTodoTile(size: size)
     }
 }
 
-private struct TodoTile: View {
+private struct LegacyTodoTile: View {
     struct Item: Codable, Identifiable, Equatable {
         var id = UUID()
         var title: String

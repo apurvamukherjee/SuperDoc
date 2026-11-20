@@ -204,7 +204,7 @@ private struct PluginTile: View {
             let shown = (tile.prefix ?? "") + PluginTemplate.format(main, as: tile.format, currency: tile.currency) + (tile.suffix ?? "")
             switch tile.template {
             case .value:
-                StatTile(label: LocalizedStringKey(PluginTemplate.fill(tile.label ?? manifest.name, with: values)), value: shown,
+                LegacyStatTile(label: LocalizedStringKey(PluginTemplate.fill(tile.label ?? manifest.name, with: values)), value: shown,
                          detail: path(tile.subtitle).flatMap { JSONPath.value($0, in: json) }.map { "\($0)" })
             case .text:
                 Text(shown).font(size == .compact ? .caption2 : .caption).lineLimit(4).minimumScaleFactor(0.7)

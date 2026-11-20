@@ -46,39 +46,43 @@ enum BarPlacement {
         return 2 * tileSpacing + CGFloat(columns) * tileUnit(thickness: thickness) + CGFloat(columns - 1) * tileSpacing
     }
 
-    /// The bar matches the Dock's thickness; `length` runs along the Dock.
+    /// `length` runs along the Dock. `thickness` defaults to the Dock's own; a thicker bar grows away from the screen
+    /// edge, so it stays flush with the Dock's edge and still rides the auto-hide slide.
     /// `bounds` is the usable screen area (visibleFrame) the bar must fit inside along the Dock.
-    static func barFrame(dock: CGRect, bounds: CGRect, position: BarPosition, gap: CGFloat, length: CGFloat) -> CGRect {
+    static func barFrame(
+        dock: CGRect, bounds: CGRect, position: BarPosition, gap: CGFloat, length: CGFloat, thickness: CGFloat? = nil
+    ) -> CGRect {
         let orientation = orientation(of: dock, in: bounds)
-        let frame = frame(at: position, dock: dock, orientation: orientation, gap: gap, length: length)
+        let thickness = thickness ?? (orientation == .bottom ? dock.height : dock.width)
+        let preferred = frame(at: position)
         // Only the axis along the Dock is checked; the other stays locked to the Dock so the bar rides its auto-hide slide.
         let fits = orientation == .bottom
-            ? frame.minX >= bounds.minX && frame.maxX <= bounds.maxX
-            : frame.minY >= bounds.minY && frame.maxY <= bounds.maxY
+            ? preferred.minX >= bounds.minX && preferred.maxX <= bounds.maxX
+            : preferred.minY >= bounds.minY && preferred.maxY <= bounds.maxY
         // No room on the requested side (common with side Docks, which fill most of the screen height):
         // move above/beside the Dock instead of going off-screen or on top of it. `.outside` always has room.
-        if fits || position == .outside { return frame }
-        return self.frame(at: .outside, dock: dock, orientation: orientation, gap: gap, length: length)
-    }
+        if fits || position == .outside { return preferred }
+        return frame(at: .outside)
 
-    private static func frame(
-        at position: BarPosition, dock: CGRect, orientation: DockOrientation, gap: CGFloat, length: CGFloat
-    ) -> CGRect {
-        switch (orientation, position) {
-        case (.bottom, .leading):
-            return CGRect(x: dock.minX - gap - length, y: dock.minY, width: length, height: dock.height)
-        case (.bottom, .trailing):
-            return CGRect(x: dock.maxX + gap, y: dock.minY, width: length, height: dock.height)
-        case (.bottom, .outside):
-            return CGRect(x: dock.midX - length / 2, y: dock.maxY + gap, width: length, height: dock.height)
-        case (_, .leading):
-            return CGRect(x: dock.minX, y: dock.maxY + gap, width: dock.width, height: length)
-        case (_, .trailing):
-            return CGRect(x: dock.minX, y: dock.minY - gap - length, width: dock.width, height: length)
-        case (.left, .outside):
-            return CGRect(x: dock.maxX + gap, y: dock.midY - length / 2, width: dock.width, height: length)
-        case (.right, .outside):
-            return CGRect(x: dock.minX - gap - dock.width, y: dock.midY - length / 2, width: dock.width, height: length)
+        func frame(at position: BarPosition) -> CGRect {
+            // Cross-axis origin for a bar flush with the Dock's screen edge.
+            let edgeX = orientation == .right ? dock.maxX - thickness : dock.minX
+            switch (orientation, position) {
+            case (.bottom, .leading):
+                return CGRect(x: dock.minX - gap - length, y: dock.minY, width: length, height: thickness)
+            case (.bottom, .trailing):
+                return CGRect(x: dock.maxX + gap, y: dock.minY, width: length, height: thickness)
+            case (.bottom, .outside):
+                return CGRect(x: dock.midX - length / 2, y: dock.maxY + gap, width: length, height: thickness)
+            case (_, .leading):
+                return CGRect(x: edgeX, y: dock.maxY + gap, width: thickness, height: length)
+            case (_, .trailing):
+                return CGRect(x: edgeX, y: dock.minY - gap - length, width: thickness, height: length)
+            case (.left, .outside):
+                return CGRect(x: dock.maxX + gap, y: dock.midY - length / 2, width: thickness, height: length)
+            case (.right, .outside):
+                return CGRect(x: dock.minX - gap - thickness, y: dock.midY - length / 2, width: thickness, height: length)
+            }
         }
     }
 }

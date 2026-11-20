@@ -91,7 +91,7 @@ struct WeatherDetailWidget: SuperWidget {
 
     static func view(size: TileSize, settings: Settings) -> some View {
         WeatherReportView(settings: settings.weather) { report, _ in
-            StatTile(label: settings.metric.title, value: value(settings.metric, report, unit: settings.weather.unit),
+            LegacyStatTile(label: settings.metric.title, value: value(settings.metric, report, unit: settings.weather.unit),
                      tint: tint(settings.metric, report))
         }
     }

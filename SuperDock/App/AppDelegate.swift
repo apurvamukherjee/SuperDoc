@@ -10,6 +10,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var termSignal: DispatchSourceSignal?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        #if DEBUG
+        GalleryRenderer.runIfRequested()
+        #endif
         // Before anything else: if SuperDock crashed while hiding the system Dock, put the user's settings back
         // (or re-hide it if replacement mode is still on). Hard rule 9.
         DockReplacement.standard.reconcile(enabled: DockReplacement.isEnabled)
@@ -19,10 +22,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if Onboarding.isNeeded { Onboarding.show() } else { Permissions.showAccessibilityOnboardingIfNeeded() }
         // Created even without access: the tracker keeps retrying, so the bar appears as soon as access is granted.
         let tracker = NativeDockTracker()
-        let buddy = BuddyController()
-        let bar = BarController(tracker: tracker, buddy: buddy)
+        let limo = LimoController()
+        let bar = BarController(tracker: tracker, limo: limo)
         barController = bar
-        windowFeatures = WindowFeatures(tracker: tracker, alerts: buddy) { [weak bar] in bar?.visibleFrame }
+        windowFeatures = WindowFeatures(tracker: tracker, alerts: limo) { [weak bar] in bar?.visibleFrame }
         clipboardFeatures = ClipboardFeatures()
         wallpaper = LiveWallpaper()
 

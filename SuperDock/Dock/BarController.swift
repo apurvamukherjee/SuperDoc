@@ -23,24 +23,24 @@ final class BarController {
     private let panel: BarPanel
     private let tracker: NativeDockTracker
     private var defaultsObserver: NSObjectProtocol?
-    private let buddy: BuddyController
-    private var buddyIsListening = false
+    private let limo: LimoController
+    private var limoIsListening = false
     private var screenUnavailable = false   // locked or displays asleep
     private var powerObservers: [NSObjectProtocol] = []
 
     /// The bar's frame while it's on screen, for anchoring alerts.
     var visibleFrame: NSRect? { panel.isVisible ? panel.frame : nil }
 
-    init(tracker: NativeDockTracker, buddy: BuddyController) {
+    init(tracker: NativeDockTracker, limo: LimoController) {
         self.tracker = tracker
-        self.buddy = buddy
+        self.limo = limo
         panel = BarPanel(content: WidgetHost(store: store, bar: bar))
         StickySpace.add(panel)
         tracker.onChange = { [weak self] _ in self?.layout() }
         store.onChange = { [weak self] in self?.layout() }
         AgentSessionService.shared.onAlert = { [weak self] session in
             guard let self else { return }
-            buddy.show(session, above: panel.isVisible ? panel.frame : nil)
+            limo.show(session, above: panel.isVisible ? panel.frame : nil)
         }
         defaultsObserver = NotificationCenter.default.addObserver(
             forName: UserDefaults.didChangeNotification, object: nil, queue: .main
@@ -48,10 +48,10 @@ final class BarController {
             MainActor.assumeIsolated {
                 self?.panel.applyAppearance()
                 self?.layout()
-                self?.updateBuddy()
+                self?.updateLimo()
             }
         }
-        updateBuddy()
+        updateLimo()
         observeLockAndSleep()
         // Wait one run-loop turn: sizing the bar's hosting view inside applicationDidFinishLaunching trips a SwiftUI
         // exclusivity crash (macOS 26) whenever the Dock is already visible at launch.
@@ -87,11 +87,11 @@ final class BarController {
         if bar.isActive != active { bar.isActive = active }
     }
 
-    /// Buddy needs agent status even when no board tile is on the bar, so it holds its own subscription.
-    private func updateBuddy() {
-        let enabled = UserDefaults.standard.object(forKey: BuddyController.enabledKey) as? Bool ?? true
-        guard enabled != buddyIsListening else { return }
-        buddyIsListening = enabled
+    /// Limo needs agent status even when no board tile is on the bar, so it holds its own subscription.
+    private func updateLimo() {
+        let enabled = UserDefaults.standard.object(forKey: LimoController.enabledKey) as? Bool ?? true
+        guard enabled != limoIsListening else { return }
+        limoIsListening = enabled
         if enabled { AgentSessionService.shared.subscribe() } else { AgentSessionService.shared.unsubscribe() }
     }
 

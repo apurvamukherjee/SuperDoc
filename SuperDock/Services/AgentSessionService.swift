@@ -4,7 +4,7 @@ import os
 
 private let log = Logger(subsystem: "dev.superdock.SuperDock", category: "agents")
 
-/// Live coding-agent sessions across all projects, for the agents board and Buddy alerts.
+/// Live coding-agent sessions across all projects, for the agents board and Limo alerts.
 @MainActor @Observable
 final class AgentSessionService {
     static let shared = AgentSessionService()
@@ -18,7 +18,7 @@ final class AgentSessionService {
 
     private(set) var sessions: [Session] = []
 
-    /// Fires when a session moves from working to done or needs-input (Buddy listens).
+    /// Fires when a session moves from working to done or needs-input (Limo listens).
     @ObservationIgnored var onAlert: ((Session) -> Void)?
 
     // ponytail: 1 s poll of a few tiny files while subscribed; FSEvents if the board ever needs to be instant.

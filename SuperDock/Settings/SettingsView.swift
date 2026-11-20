@@ -109,7 +109,7 @@ private struct ClipboardSettings: View {
 }
 
 private struct AISettings: View {
-    @AppStorage(BuddyController.enabledKey) private var buddyAlerts = true
+    @AppStorage(LimoController.enabledKey) private var limoAlerts = true
     @State private var claudeConnected = ClaudeStatusLineBridge.standard.isConnected
     @State private var error: String?
 
@@ -133,8 +133,8 @@ private struct AISettings: View {
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
-            Section("Buddy") {
-                Toggle("Pop up when an agent finishes or needs your input", isOn: $buddyAlerts)
+            Section("Limo") {
+                Toggle("Pop up when an agent finishes or needs your input", isOn: $limoAlerts)
             }
             Section {
                 Text("Cursor and Antigravity aren't supported yet.").font(.caption).foregroundStyle(.secondary)

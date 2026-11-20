@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 enum BarStyle: String, CaseIterable {
-    case glass, frosted, dark, light
+    case glass, frosted, dark, light, paper
 
     var title: LocalizedStringKey {
         switch self {
@@ -10,6 +10,7 @@ enum BarStyle: String, CaseIterable {
         case .frosted: "Frosted"
         case .dark: "Solid dark"
         case .light: "Solid light"
+        case .paper: "Paper"
         }
     }
 }
@@ -57,10 +58,10 @@ enum AppearancePrefs {
             }
         case .glass, .frosted:
             view = frosted()
-        case .dark, .light:
+        case .dark, .light, .paper:
             view = NSView()
             view.wantsLayer = true
-            view.layer?.backgroundColor = (values.style == .dark ? NSColor(white: 0.12, alpha: 1) : NSColor(white: 0.96, alpha: 1)).cgColor
+            view.layer?.backgroundColor = NSColor(SurfaceTokens.solidBarFill(values.style)).cgColor
         }
         view.wantsLayer = true
         view.layer?.cornerRadius = values.cornerRadius

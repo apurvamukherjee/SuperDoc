@@ -66,6 +66,16 @@ func bottomDockPositions(position: BarPosition, expected: CGRect) {
             == CGRect(x: 0, y: 52, width: 85, height: 240))
 }
 
+@Test func thickerBarStaysFlushWithTheScreenEdge() {
+    #expect(BarPlacement.barFrame(dock: bottomDock, bounds: visible, position: .trailing, gap: 8, length: 240, thickness: 120)
+            .minY == bottomDock.minY)
+    let right = CGRect(x: 1625, y: 300, width: 85, height: 400)
+    #expect(BarPlacement.barFrame(dock: right, bounds: visible, position: .leading, gap: 8, length: 240, thickness: 120)
+            == CGRect(x: 1590, y: 708, width: 120, height: 240))
+    #expect(BarPlacement.barFrame(dock: right, bounds: visible, position: .outside, gap: 8, length: 240, thickness: 120)
+            == CGRect(x: 1497, y: 380, width: 120, height: 240))
+}
+
 @Test func tallSideDockFallsBackToBeside() {
     // Real macOS 26 left Dock: AX (10, 82, 78×977) → only 48 pt free below it.
     let tall = CGRect(x: 10, y: 48, width: 78, height: 977)
