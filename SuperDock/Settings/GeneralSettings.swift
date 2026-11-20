@@ -12,28 +12,30 @@ struct GeneralSettings: View {
     @State private var message: String?
 
     var body: some View {
-        Form {
-            Section {
-                Toggle("Open SuperDock at login", isOn: Binding(get: { launchAtLogin }, set: setLaunchAtLogin))
-                LabeledContent("Updates") {
-                    if Updates.isConfigured {
-                        Button("Check Now") { Updates.shared.checkForUpdates() }
-                    } else {
-                        Text("Available in release builds").foregroundStyle(.secondary)
+        SettingsPane(title: "General", subtitle: "Startup, updates and moving your setup to another Mac.") {
+            Form {
+                Section {
+                    Toggle("Open SuperDock at login", isOn: Binding(get: { launchAtLogin }, set: setLaunchAtLogin))
+                    LabeledContent("Updates") {
+                        if Updates.isConfigured {
+                            Button("Check Now") { Updates.shared.checkForUpdates() }
+                        } else {
+                            Text("Available in release builds").foregroundStyle(.secondary)
+                        }
                     }
                 }
-            }
-            Section("Move to another Mac") {
-                HStack {
-                    Button("Export Settings…", action: exportSettings)
-                    Button("Import Settings…", action: importSettings)
+                Section("Move to another Mac") {
+                    HStack {
+                        Button("Export Settings…", action: exportSettings)
+                        Button("Import Settings…", action: importSettings)
+                    }
+                    Text("Includes the bar layout, profiles and preferences. Clipboard history and AI data are never exported.")
+                        .font(.caption).foregroundStyle(.secondary)
                 }
-                Text("Includes the bar layout, profiles and preferences. Clipboard history and AI data are never exported.")
-                    .font(.caption).foregroundStyle(.secondary)
+                if let message { Text(message).font(.caption).foregroundStyle(.secondary) }
             }
-            if let message { Text(message).font(.caption).foregroundStyle(.secondary) }
+            .formStyle(.grouped)
         }
-        .formStyle(.grouped)
     }
 
     private func setLaunchAtLogin(_ enabled: Bool) {

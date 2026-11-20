@@ -1,28 +1,186 @@
 import SwiftUI
 
-/// Stored so the bar's "Widget Settings…" menu can open Settings on the right tab.
-enum SettingsTab: String {
-    case general, placement, widgets, plugins, profiles, appearance, windows, clipboard, ai, about
+/// Stored so the bar's "Widget Settings…" menu can open Settings on the right pane.
+enum SettingsTab: String, CaseIterable, Identifiable {
+    case general, placement, widgets, plugins, profiles, appearance, ai, limo, windows, clipboard, about
     static let storageKey = "settings.tab"
+
+    var id: Self { self }
+
+    var title: LocalizedStringKey {
+        switch self {
+        case .general: "General"
+        case .placement: "Placement"
+        case .widgets: "Widgets"
+        case .plugins: "Plugins"
+        case .profiles: "Profiles"
+        case .appearance: "Appearance"
+        case .ai: "AI & Agents"
+        case .limo: "Limo"
+        case .windows: "Windows"
+        case .clipboard: "Clipboard"
+        case .about: "About"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .general: "gearshape"
+        case .placement: "dock.rectangle"
+        case .widgets: "square.grid.2x2"
+        case .plugins: "puzzlepiece.extension"
+        case .profiles: "square.stack"
+        case .appearance: "paintpalette"
+        case .ai: "sparkle"
+        case .limo: "face.smiling"
+        case .windows: "macwindow.on.rectangle"
+        case .clipboard: "list.clipboard"
+        case .about: "info.circle"
+        }
+    }
+
+    /// Sidebar icon tiles, System Settings style, measured off mockup 07.
+    var tint: Color {
+        switch self {
+        case .general, .about: Color(rgb: 0x8E8E93)
+        case .placement: Color(rgb: 0x5E6AE8)
+        case .widgets: Color(rgb: 0xFF8A3D)
+        case .plugins: Color(rgb: 0x2E9E5B)
+        case .profiles: Color(rgb: 0x3A9BE0)
+        case .appearance: Color(rgb: 0xE5508C)
+        case .ai: Color(rgb: 0xF79C1C)
+        case .limo: Palette.ink
+        case .windows: Color(rgb: 0x2F7CF6)
+        case .clipboard: Color(rgb: 0x19A39A)
+        }
+    }
 }
 
 struct SettingsView: View {
     @AppStorage(SettingsTab.storageKey) private var tab = SettingsTab.general
 
     var body: some View {
-        TabView(selection: $tab) {
-            GeneralSettings().tabItem { Label("General", systemImage: "gearshape") }.tag(SettingsTab.general)
-            PlacementSettings().tabItem { Label("Placement", systemImage: "dock.rectangle") }.tag(SettingsTab.placement)
-            WidgetsSettings().tabItem { Label("Widgets", systemImage: "square.grid.2x2") }.tag(SettingsTab.widgets)
-            PluginsSettings().tabItem { Label("Plugins", systemImage: "puzzlepiece.extension") }.tag(SettingsTab.plugins)
-            ProfilesSettings().tabItem { Label("Profiles", systemImage: "person.crop.rectangle.stack") }.tag(SettingsTab.profiles)
-            AppearanceSettings().tabItem { Label("Appearance", systemImage: "paintbrush") }.tag(SettingsTab.appearance)
-            WindowSettings().tabItem { Label("Windows", systemImage: "macwindow.on.rectangle") }.tag(SettingsTab.windows)
-            ClipboardSettings().tabItem { Label("Clipboard", systemImage: "list.clipboard") }.tag(SettingsTab.clipboard)
-            AISettings().tabItem { Label("AI", systemImage: "sparkles") }.tag(SettingsTab.ai)
-            AboutSettings().tabItem { Label("About", systemImage: "info.circle") }.tag(SettingsTab.about)
+        SettingsWindow(tab: $tab)
+    }
+}
+
+/// The window content with the pane passed in, so the gallery can draw any pane without touching user defaults.
+struct SettingsWindow: View {
+    @Binding var tab: SettingsTab
+
+    var body: some View {
+        NavigationSplitView {
+            List(selection: Binding(get: { tab }, set: { if let new = $0 { tab = new } })) {
+                ForEach(SettingsTab.allCases) { SettingsSidebarRow(tab: $0).tag($0) }
+            }
+            .listStyle(.sidebar)
+            .safeAreaInset(edge: .bottom) { SettingsSidebarFooter() }
+            .navigationSplitViewColumnWidth(min: 200, ideal: 210, max: 260)
+            .toolbar(removing: .sidebarToggle)
+        } detail: {
+            SettingsPaneContent(tab: tab)
         }
-        .frame(width: 480)
+        .toolbarBackground(.hidden, for: .windowToolbar)
+        .frame(width: 940, height: 660)
+    }
+}
+
+/// The pane for one sidebar entry.
+struct SettingsPaneContent: View {
+    let tab: SettingsTab
+
+    var body: some View {
+        content.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    @ViewBuilder private var content: some View {
+        switch tab {
+        case .general: GeneralSettings()
+        case .placement: PlacementSettings()
+        case .widgets: WidgetsSettings()
+        case .plugins: PluginsSettings()
+        case .profiles: ProfilesSettings()
+        case .appearance: AppearanceSettings()
+        case .ai: AISettings()
+        case .limo: LimoSettings()
+        case .windows: WindowSettings()
+        case .clipboard: ClipboardSettings()
+        case .about: AboutSettings()
+        }
+    }
+}
+
+struct SettingsSidebarRow: View {
+    let tab: SettingsTab
+
+    var body: some View {
+        Label {
+            Text(tab.title).font(.system(size: 13))
+        } icon: {
+            Image(systemName: tab.symbol)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: 22, height: 22)
+                .background(tab.tint.gradient, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                .overlay { RoundedRectangle(cornerRadius: 6, style: .continuous).strokeBorder(.white.opacity(0.16)) }
+        }
+        .padding(.vertical, 2)
+    }
+}
+
+struct SettingsSidebarFooter: View {
+    var body: some View {
+        VStack(spacing: 0) {
+            Divider().padding(.horizontal, 12)
+            HStack(spacing: 10) {
+                Image(nsImage: NSApp.applicationIconImage)
+                    .resizable()
+                    .frame(width: 30, height: 30)
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("SuperDock").font(.system(size: 12, weight: .semibold))
+                    Text("v\(AppVersion.short)").font(.system(size: 11)).foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+        }
+    }
+}
+
+enum AppVersion {
+    static let short = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
+}
+
+/// Pane header (big title, one-line explainer, optional trailing control) over the pane's content.
+struct SettingsPane<Accessory: View, Content: View>: View {
+    let title: LocalizedStringKey
+    let subtitle: LocalizedStringKey
+    @ViewBuilder var accessory: Accessory
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .top, spacing: 16) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title).font(.system(size: 22, weight: .bold))
+                    Text(subtitle).font(.system(size: 12.5)).foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 0)
+                accessory
+            }
+            .padding(.horizontal, 24)
+            .padding(.top, 18)
+            .padding(.bottom, 4)
+            content
+        }
+    }
+}
+
+extension SettingsPane where Accessory == EmptyView {
+    init(title: LocalizedStringKey, subtitle: LocalizedStringKey, @ViewBuilder content: () -> Content) {
+        self.init(title: title, subtitle: subtitle, accessory: { EmptyView() }, content: content)
     }
 }
 
@@ -35,31 +193,33 @@ private struct WindowSettings: View {
     @State private var hasScreenRecording = Permissions.hasScreenRecording
 
     var body: some View {
-        Form {
-            Section {
-                Toggle("Window switcher (⌥Tab, ⌥⇧Tab to go back)", isOn: $switcher)
-                Toggle("Only show windows on the current Space", isOn: $currentSpaceOnly).disabled(!switcher)
-            }
-            Section {
-                Toggle("Show window previews when hovering Dock icons", isOn: Binding(
-                    get: { previews },
-                    set: { isOn in
-                        // Ask for Screen Recording only when the user turns previews on (hard rule 7).
-                        previews = isOn && Permissions.requestScreenRecording()
-                        hasScreenRecording = Permissions.hasScreenRecording
+        SettingsPane(title: "Windows", subtitle: "Switch between windows, peek at them from the Dock, jump to apps.") {
+            Form {
+                Section {
+                    Toggle("Window switcher (⌥Tab, ⌥⇧Tab to go back)", isOn: $switcher)
+                    Toggle("Only show windows on the current Space", isOn: $currentSpaceOnly).disabled(!switcher)
+                }
+                Section {
+                    Toggle("Show window previews when hovering Dock icons", isOn: Binding(
+                        get: { previews },
+                        set: { isOn in
+                            // Ask for Screen Recording only when the user turns previews on (hard rule 7).
+                            previews = isOn && Permissions.requestScreenRecording()
+                            hasScreenRecording = Permissions.hasScreenRecording
+                        }
+                    ))
+                    LabeledContent("Screen Recording") {
+                        Text(hasScreenRecording ? "Allowed" : "Not allowed — previews show icons only")
+                            .foregroundStyle(.secondary)
                     }
-                ))
-                LabeledContent("Screen Recording") {
-                    Text(hasScreenRecording ? "Allowed" : "Not allowed — previews show icons only")
-                        .foregroundStyle(.secondary)
+                }
+                Section {
+                    Toggle("⌃⌥1–9 opens the app in that Dock position", isOn: $dockNumbers)
+                    Toggle("Warn when an app stops responding", isOn: $frozenAlerts)
                 }
             }
-            Section {
-                Toggle("⌃⌥1–9 opens the app in that Dock position", isOn: $dockNumbers)
-                Toggle("Warn when an app stops responding", isOn: $frozenAlerts)
-            }
+            .formStyle(.grouped)
         }
-        .formStyle(.grouped)
     }
 }
 
@@ -73,74 +233,77 @@ private struct ClipboardSettings: View {
     private let hasNotch = NSScreen.screens.contains { $0.safeAreaInsets.top > 0 }
 
     var body: some View {
-        Form {
-            Section {
-                Toggle("Keep clipboard history (⌥⌘V)", isOn: $history)
-                Text("""
-                    Stored only on this Mac. Items that password managers mark as concealed or transient are never \
-                    read or saved. ⌥⌘V replaces Finder's "Move Item Here" shortcut while history is on.
-                    """)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Toggle("Paste straight into the app when choosing an item", isOn: $pasteDirectly).disabled(!history)
-                Toggle("Copy Peek: show what was just copied", isOn: $peek).disabled(!history)
-            }
-            Section("Notch") {
-                Toggle("Recent copies under the notch", isOn: $notch).disabled(!history || !hasNotch)
-                Picker("Style", selection: $notchStyle) {
-                    Text("Full: hover the notch to show a wide shelf").tag(NotchShelf.Style.full)
-                    Text("Icon only: a small icon beside the notch, nothing else").tag(NotchShelf.Style.icon)
+        SettingsPane(title: "Clipboard", subtitle: "History, Copy Peek and the notch shelf. Everything stays on this Mac.") {
+            Form {
+                Section {
+                    Toggle("Keep clipboard history (⌥⌘V)", isOn: $history)
+                    Text("""
+                        Stored only on this Mac. Items that password managers mark as concealed or transient are never \
+                        read or saved. ⌥⌘V replaces Finder's "Move Item Here" shortcut while history is on.
+                        """)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Toggle("Paste straight into the app when choosing an item", isOn: $pasteDirectly).disabled(!history)
+                    Toggle("Copy Peek: show what was just copied", isOn: $peek).disabled(!history)
                 }
-                .pickerStyle(.radioGroup)
-                .disabled(!history || !notch || !hasNotch)
-                if !hasNotch { Text("This Mac's displays don't have a notch.").font(.caption).foregroundStyle(.secondary) }
-            }
-            Section("Pinned items") {
-                Text("Right-click an item in the history to pin it to ⌃⌥⌘1–9 for one-keystroke pasting.")
-                    .font(.caption).foregroundStyle(.secondary)
-                Button("Clear History…", role: .destructive) { confirmClear = true }
-                    .confirmationDialog("Clear clipboard history? Pinned items are kept.", isPresented: $confirmClear) {
-                        Button("Clear History", role: .destructive) { ClipboardStore.shared.clearUnpinned() }
+                Section("Notch") {
+                    Toggle("Recent copies under the notch", isOn: $notch).disabled(!history || !hasNotch)
+                    Picker("Style", selection: $notchStyle) {
+                        Text("Full: hover the notch to show a wide shelf").tag(NotchShelf.Style.full)
+                        Text("Icon only: a small icon beside the notch, nothing else").tag(NotchShelf.Style.icon)
                     }
+                    .pickerStyle(.radioGroup)
+                    .disabled(!history || !notch || !hasNotch)
+                    if !hasNotch {
+                        Text("This Mac's displays don't have a notch.").font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+                Section("Pinned items") {
+                    Text("Right-click an item in the history to pin it to ⌃⌥⌘1–9 for one-keystroke pasting.")
+                        .font(.caption).foregroundStyle(.secondary)
+                    Button("Clear History…", role: .destructive) { confirmClear = true }
+                        .confirmationDialog("Clear clipboard history? Pinned items are kept.", isPresented: $confirmClear) {
+                            Button("Clear History", role: .destructive) { ClipboardStore.shared.clearUnpinned() }
+                        }
+                }
             }
+            .formStyle(.grouped)
         }
-        .formStyle(.grouped)
     }
 }
 
 private struct AISettings: View {
-    @AppStorage(LimoController.enabledKey) private var limoAlerts = true
     @State private var claudeConnected = ClaudeStatusLineBridge.standard.isConnected
     @State private var error: String?
 
     var body: some View {
-        Form {
-            Section("Claude Code limits") {
-                Text("""
-                    Claude Code only shares its 5-hour and weekly usage with its status line. Connecting adds a small \
-                    script in front of your current status line: it saves just those percentages for SuperDock, then runs \
-                    your status line exactly as before. Nothing from your prompts or code is saved.
-                    """)
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                LabeledContent(claudeConnected ? "Connected" : "Not connected") {
-                    Button(claudeConnected ? "Disconnect" : "Connect Claude Code", action: toggleClaude)
+        SettingsPane(title: "AI & Agents", subtitle: "Usage limits and live sessions. SuperDock reads status and percentages only.") {
+            Form {
+                Section("Claude Code limits") {
+                    Text("""
+                        Claude Code only shares its 5-hour and weekly usage with its status line. Connecting adds a small \
+                        script in front of your current status line: it saves just those percentages for SuperDock, then \
+                        runs your status line exactly as before. Nothing from your prompts or code is saved.
+                        """)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                    LabeledContent(claudeConnected ? "Connected" : "Not connected") {
+                        Button(claudeConnected ? "Disconnect" : "Connect Claude Code", action: toggleClaude)
+                    }
+                    if let error { Text(error).font(.caption).foregroundStyle(.red) }
                 }
-                if let error { Text(error).font(.caption).foregroundStyle(.red) }
+                Section("Codex") {
+                    Text("Limits and sessions are read from ~/.codex/sessions automatically. No setup needed.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+                Section {
+                    Text("Limo's agent alerts are in the Limo pane. Cursor and Antigravity aren't supported yet.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
             }
-            Section("Codex") {
-                Text("Limits and sessions are read from ~/.codex/sessions automatically. No setup needed.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-            }
-            Section("Limo") {
-                Toggle("Pop up when an agent finishes or needs your input", isOn: $limoAlerts)
-            }
-            Section {
-                Text("Cursor and Antigravity aren't supported yet.").font(.caption).foregroundStyle(.secondary)
-            }
+            .formStyle(.grouped)
         }
-        .formStyle(.grouped)
     }
 
     private func toggleClaude() {
@@ -157,110 +320,34 @@ private struct AISettings: View {
     }
 }
 
-private struct WidgetsSettings: View {
-    @Bindable private var store = LayoutStore.shared
-    @State private var showingPicker = false
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            List {
-                ForEach($store.tiles) { $tile in
-                    TileRow(tile: $tile) { store.remove(tile.id) }
-                }
-                .onMove { store.tiles.move(fromOffsets: $0, toOffset: $1) }
-            }
-            .frame(minHeight: 300)
-            HStack {
-                Text("Drag to reorder, here or on the bar. Right-click a tile on the bar for quick options.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Button("Add Widget…") { showingPicker = true }
-            }
-        }
-        .padding(20)
-        .sheet(isPresented: $showingPicker) {
-            WidgetPicker { store.add($0.id, size: $0.supportedSizes[0]) }
-        }
-    }
-}
-
-private struct TileRow: View {
-    @Binding var tile: Tile
-    let remove: () -> Void
-
-    var body: some View {
-        let widget = WidgetRegistry.widget(tile.widgetId)
-        let name = widget?.name ?? tile.widgetId
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Label(name, systemImage: widget?.symbol ?? "questionmark.square.dashed")
-                Spacer()
-                if let widget, widget.supportedSizes.count > 1 {
-                    Picker("Size", selection: $tile.size) {
-                        ForEach(widget.supportedSizes) { Text($0.title).tag($0) }
-                    }
-                    .labelsHidden()
-                    .fixedSize()
-                }
-                Button(action: remove) { Image(systemName: "minus.circle") }
-                    .buttonStyle(.borderless)
-                    .accessibilityLabel("Remove \(name)")
-            }
-            if let editor = widget?.settingsEditor($tile.settings) {
-                editor.padding(.leading, 28)
-            }
-        }
-        .padding(.vertical, 4)
-    }
-}
-
-private struct PlacementSettings: View {
-    @AppStorage(BarPrefs.positionKey) private var position = BarPrefs.defaultPosition
-    @AppStorage(BarPrefs.gapKey) private var gap = BarPrefs.defaultGap
-    @AppStorage(DockReplacement.enabledKey) private var replaceDock = false
-
-    var body: some View {
-        Form {
-            Toggle("Replace the system Dock", isOn: Binding(get: { replaceDock }, set: { isOn in
-                replaceDock = isOn
-                if isOn { DockReplacement.standard.apply() } else { DockReplacement.standard.restore() }
-            }))
-            Text("""
-                Hides the macOS Dock and shows your apps in SuperDock's bar instead. Your Dock settings are saved \
-                first and put back when you turn this off or quit SuperDock.
-                """)
-                .font(.caption).foregroundStyle(.secondary)
-            Picker("Position", selection: $position) {
-                Text("Left of the Dock (above it when the Dock is on a side)").tag(BarPosition.leading)
-                Text("Right of the Dock (below it when the Dock is on a side)").tag(BarPosition.trailing)
-                Text("Above the Dock (beside it when the Dock is on a side)").tag(BarPosition.outside)
-            }
-            .pickerStyle(.radioGroup)
-            .disabled(replaceDock)
-            LabeledContent("Gap") {
-                HStack {
-                    Slider(value: $gap, in: 0...32, step: 1)
-                    Text("\(Int(gap)) pt").monospacedDigit().frame(width: 40, alignment: .trailing)
-                }
-            }
-        }
-        .padding(20)
-    }
-}
-
 private struct AboutSettings: View {
-    private let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
-
     var body: some View {
-        VStack(spacing: 8) {
-            Image(systemName: "dock.rectangle")
-                .font(.system(size: 48))
+        VStack(spacing: 10) {
+            Spacer()
+            Image(nsImage: NSApp.applicationIconImage)
+                .resizable()
+                .frame(width: 96, height: 96)
                 .accessibilityHidden(true)
-            Text("SuperDock").font(.title.bold())
-            Text("Version \(version)").foregroundStyle(.secondary)
-            Text("Free. Local-first. No accounts.")
+            Text("SuperDock").font(.system(size: 26, weight: .bold))
+            Text("Version \(AppVersion.short)").foregroundStyle(.secondary)
+            Text("Free. Local-first. No accounts, no analytics.").padding(.top, 4)
+            HStack(spacing: 10) {
+                CheckForUpdatesButton()
+                Link("GitHub", destination: Links.repo)
+                Link("MIT License", destination: Links.license)
+            }
+            .padding(.top, 10)
+            if !Updates.isConfigured {
+                Text("Updates are checked in release builds only.").font(.caption).foregroundStyle(.secondary)
+            }
+            Spacer()
         }
-        .padding(40)
+        .frame(maxWidth: .infinity)
+    }
+
+    private enum Links {
+        static let repo = URL(string: "https://github.com/apurvamukherjee/SuperDoc") ?? URL(fileURLWithPath: "/")
+        static let license = URL(string: "https://github.com/apurvamukherjee/SuperDoc/blob/main/LICENSE")
+            ?? URL(fileURLWithPath: "/")
     }
 }

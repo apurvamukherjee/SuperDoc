@@ -7,61 +7,63 @@ struct PluginsSettings: View {
     @State private var message: String?
 
     var body: some View {
-        Form {
-            Section("Installed") {
-                ForEach(store.plugins) { plugin in
-                    HStack {
-                        Label(plugin.manifest.name, systemImage: plugin.manifest.symbol ?? "puzzlepiece.extension")
-                        if plugin.isBuiltIn { Text("Built-in").font(.caption).foregroundStyle(.secondary) }
-                        Spacer()
-                        if !plugin.isBuiltIn {
-                            Button("Remove") { run { try store.remove(plugin) } }.controlSize(.small)
-                        }
-                    }
-                    .help(plugin.manifest.description ?? plugin.manifest.source.url)
-                }
-                ForEach(store.problems, id: \.self) { Text($0).font(.caption).foregroundStyle(.red) }
-                HStack {
-                    Button("Install from File…") { installFromFile() }
-                    Button("Open Plugins Folder") {
-                        run {
-                            try FileManager.default.createDirectory(at: PluginStore.folder, withIntermediateDirectories: true)
-                            NSWorkspace.shared.open(PluginStore.folder)
-                        }
-                    }
-                    Button("Reload") { store.reload() }
-                }
-            }
-            Section("Community gallery") {
-                if let gallery {
-                    ForEach(gallery) { entry in
+        SettingsPane(title: "Plugins", subtitle: "Small JSON widgets that fetch a URL and show a value, list or gauge.") {
+            Form {
+                Section("Installed") {
+                    ForEach(store.plugins) { plugin in
                         HStack {
-                            VStack(alignment: .leading) {
-                                Text(entry.name)
-                                Text("\(entry.description) · by \(entry.author)").font(.caption).foregroundStyle(.secondary)
-                            }
+                            Label(plugin.manifest.name, systemImage: plugin.manifest.symbol ?? "puzzlepiece.extension")
+                            if plugin.isBuiltIn { Text("Built-in").font(.caption).foregroundStyle(.secondary) }
                             Spacer()
-                            if store.plugins.contains(where: { $0.id == entry.id }) {
-                                Text("Installed").font(.caption).foregroundStyle(.secondary)
-                            } else {
-                                Button("Install") { Task { await install(entry) } }.controlSize(.small)
+                            if !plugin.isBuiltIn {
+                                Button("Remove") { run { try store.remove(plugin) } }.controlSize(.small)
                             }
                         }
+                        .help(plugin.manifest.description ?? plugin.manifest.source.url)
                     }
-                } else {
-                    Button("Browse Gallery") { Task { await loadGallery() } }
+                    ForEach(store.problems, id: \.self) { Text($0).font(.caption).foregroundStyle(.red) }
+                    HStack {
+                        Button("Install from File…") { installFromFile() }
+                        Button("Open Plugins Folder") {
+                            run {
+                                try FileManager.default.createDirectory(at: PluginStore.folder, withIntermediateDirectories: true)
+                                NSWorkspace.shared.open(PluginStore.folder)
+                            }
+                        }
+                        Button("Reload") { store.reload() }
+                    }
                 }
-                if let message { Text(message).font(.caption).foregroundStyle(.secondary) }
+                Section("Community gallery") {
+                    if let gallery {
+                        ForEach(gallery) { entry in
+                            HStack {
+                                VStack(alignment: .leading) {
+                                    Text(entry.name)
+                                    Text("\(entry.description) · by \(entry.author)").font(.caption).foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                if store.plugins.contains(where: { $0.id == entry.id }) {
+                                    Text("Installed").font(.caption).foregroundStyle(.secondary)
+                                } else {
+                                    Button("Install") { Task { await install(entry) } }.controlSize(.small)
+                                }
+                            }
+                        }
+                    } else {
+                        Button("Browse Gallery") { Task { await loadGallery() } }
+                    }
+                    if let message { Text(message).font(.caption).foregroundStyle(.secondary) }
+                }
+                Section {
+                    Text("""
+                        Plugins are JSON files that describe a URL to fetch and which values to show (docs/plugins.md). \
+                        They can't run code, read your files or open anything except web links.
+                        """)
+                        .font(.caption).foregroundStyle(.secondary)
+                }
             }
-            Section {
-                Text("""
-                    Plugins are JSON files that describe a URL to fetch and which values to show (docs/plugins.md). \
-                    They can't run code, read your files or open anything except web links.
-                    """)
-                    .font(.caption).foregroundStyle(.secondary)
-            }
+            .formStyle(.grouped)
         }
-        .formStyle(.grouped)
     }
 
     private func run(_ action: () throws -> Void) {
