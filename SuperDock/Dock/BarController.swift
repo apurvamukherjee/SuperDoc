@@ -27,6 +27,13 @@ final class BarController {
     private var limoIsListening = false
     private var screenUnavailable = false   // locked or displays asleep
     private var powerObservers: [NSObjectProtocol] = []
+    /// With auto-hide, moving from the Dock onto the bar makes macOS hide the Dock. The bar stays put while the
+    /// pointer, its right-click menu or one of its popovers is on it, and tucks away once all three are gone.
+    private var isHovered = false
+    private var menuIsOpen = false
+    private var holdObservers: [NSObjectProtocol] = []
+    private var releaseTask: Task<Void, Never>?
+    private var isHeld: Bool { isHovered || menuIsOpen || !(panel.childWindows ?? []).isEmpty }
 
     /// The bar's frame while it's on screen, for anchoring alerts.
     var visibleFrame: NSRect? { panel.isVisible ? panel.frame : nil }
@@ -53,6 +60,7 @@ final class BarController {
         }
         updateLimo()
         observeLockAndSleep()
+        observeHold()
         // Wait one run-loop turn: sizing the bar's hosting view inside applicationDidFinishLaunching trips a SwiftUI
         // exclusivity crash (macOS 26) whenever the Dock is already visible at launch.
         DispatchQueue.main.async { [weak self] in
@@ -61,6 +69,63 @@ final class BarController {
             // The tracker only reports changes; in replacement mode the Dock starts (and stays) hidden, so lay out once now.
             self.layout()
         }
+    }
+
+    private func observeHold() {
+        panel.onHoverChange = { [weak self] hovering in
+            self?.isHovered = hovering
+            self?.holdChanged()
+        }
+        let center = NotificationCenter.default
+        let watch = { [weak self] (name: Notification.Name, change: @escaping @MainActor (BarController) -> Void) in
+            guard let self else { return }
+            holdObservers.append(center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated {
+                    guard let self else { return }
+                    change(self)
+                    self.holdChanged()
+                }
+            })
+        }
+        watch(NSMenu.didBeginTrackingNotification) { $0.menuIsOpen = true }
+        watch(NSMenu.didEndTrackingNotification) { $0.menuIsOpen = false }
+        watch(NSPopover.didCloseNotification) { _ in }
+    }
+
+    /// Releasing waits a beat: crossing the gap between Dock and bar, or a popover closing as the pointer comes back,
+    /// shouldn't make the bar dip.
+    private func holdChanged() {
+        releaseTask?.cancel()
+        guard !isHeld else { return }
+        releaseTask = Task { [weak self] in
+            do { try await Task.sleep(for: .milliseconds(300)) } catch { return }   // cancelled by a newer change
+            self?.layout()
+        }
+    }
+
+    /// Slides the bar off the screen edge it shares with the hidden Dock, then hides it.
+    private func tuckAway() {
+        guard panel.isVisible else { return }
+        let screen = (panel.screen ?? NSScreen.main)?.frame ?? panel.frame
+        var away = panel.frame
+        if bar.isVertical {
+            away.origin.x += panel.frame.midX < screen.midX ? -(away.width + 12) : away.width + 12
+        } else {
+            away.origin.y -= away.height + 12
+        }
+        let reduceMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+        NSAnimationContext.runAnimationGroup({ context in
+            context.duration = reduceMotion ? 0.15 : 0.25
+            context.timingFunction = CAMediaTimingFunction(name: .easeIn)
+            if reduceMotion { panel.animator().alphaValue = 0 } else { panel.animator().setFrame(away, display: true) }
+        }, completionHandler: { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self, !self.isHeld, self.tracker.dock == nil else { return }
+                self.panel.orderOut(nil)
+                self.panel.alphaValue = 1
+                self.updateActivity()
+            }
+        })
     }
 
     /// Nothing on the bar should tick while nobody can see it (SUPERDOCK.md §10).
@@ -102,8 +167,9 @@ final class BarController {
         if DockReplacement.isEnabled { return layoutAsDock() }
         if bar.showsAppStrip { bar.showsAppStrip = false }
         guard let dock = tracker.dock else {
-            panel.orderOut(nil)
-            updateActivity()
+            // Held means the pointer just came over from the Dock; macOS hid the Dock, the bar keeps its place.
+            if isHeld { return }
+            tuckAway()
             return
         }
         // Built-in and external displays each have their own active profile.
@@ -123,6 +189,10 @@ final class BarController {
             position: BarPrefs.position, gap: BarPrefs.gap,
             length: BarPlacement.barLength(columns: tileColumns, thickness: thickness)
         )
+        // While held, don't ride the Dock's hide slide off the screen.
+        let onScreen = NSScreen.screens.contains { $0.frame.contains(frame) }
+        if isHeld, panel.isVisible, !onScreen { return }
+        panel.alphaValue = 1
         panel.setFrame(frame, display: true)
         if !panel.isVisible { panel.orderFrontRegardless() }
         updateActivity()
