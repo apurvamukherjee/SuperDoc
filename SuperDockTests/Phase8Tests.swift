@@ -83,6 +83,15 @@ struct PluginManifestTests {
     }
 }
 
+struct BundledListPluginTests {
+    @Test(arguments: [("hackernews", "$.hits[*].points"), ("lobsters", "$[*].score"), ("dev", "$[*].public_reactions_count")])
+    func listPluginsShowCounts(name: String, counts: String) throws {
+        let file = repo.appending(path: "SuperDock/Resources/Plugins/plugin-\(name).json")
+        let manifest = try JSONDecoder().decode(PluginManifest.self, from: Data(contentsOf: file))
+        #expect(manifest.tile.counts == counts)
+    }
+}
+
 struct DevParsingTests {
     @Test func lsofListeningPorts() {
         let output = """
@@ -99,6 +108,27 @@ struct DevParsingTests {
         #expect(status == .init(branch: "main", changed: 2, ahead: 2, behind: 1))
         #expect(DevParsing.gitStatus(fromPorcelain: "## No commits yet on dev\n")?.branch == "dev")
         #expect(DevParsing.gitStatus(fromPorcelain: "fatal: not a git repository") == nil)
+    }
+
+    @Test func lastCommit() {
+        let commit = DevParsing.lastCommit(fromLog: "a1b2c3d\u{1f}1795109100\u{1f}Fix: keep | and : in subjects\n")
+        #expect(commit == .init(hash: "a1b2c3d", date: Date(timeIntervalSince1970: 1_795_109_100),
+                                subject: "Fix: keep | and : in subjects"))
+        #expect(DevParsing.lastCommit(fromLog: "a1b2c3d\u{1f}1795109100\u{1f}\n")?.subject == "")
+        #expect(DevParsing.lastCommit(fromLog: "") == nil)
+        #expect(DevParsing.lastCommit(fromLog: "a1b2c3d\u{1f}yesterday\u{1f}Subject") == nil)
+        #expect(DevParsing.lastCommit(fromLog: "fatal: your current branch 'main' does not have any commits yet") == nil)
+    }
+
+    @Test func lineChanges() {
+        let both = DevParsing.lineChanges(fromShortstat: " 3 files changed, 142 insertions(+), 37 deletions(-)\n")
+        #expect(both.insertions == 142 && both.deletions == 37)
+        let added = DevParsing.lineChanges(fromShortstat: " 1 file changed, 1 insertion(+)\n")
+        #expect(added.insertions == 1 && added.deletions == 0)
+        let removed = DevParsing.lineChanges(fromShortstat: " 2 files changed, 9 deletions(-)\n")
+        #expect(removed.insertions == 0 && removed.deletions == 9)
+        let clean = DevParsing.lineChanges(fromShortstat: "")
+        #expect(clean.insertions == 0 && clean.deletions == 0)
     }
 
     @Test func passwordsUseTheAlphabetAndLength() {

@@ -1,4 +1,4 @@
-import SwiftUI
+import Foundation
 
 /// Everything Limo can act out. The body never changes shape; only the face, arms and props do.
 enum LimoPose: String, CaseIterable, Sendable {
@@ -8,6 +8,19 @@ enum LimoPose: String, CaseIterable, Sendable {
     case vibes, umbrella, fansItself, takesSip, catchesIt, helpsCarry
     /// "Connect Claude": one brow up, a question mark.
     case curious
+
+    /// The pose for an alert that only names its SF Symbol (callers of `LimoController.show(message:symbol:…)`).
+    init(alertSymbol symbol: String) {
+        self = switch symbol {
+        case "exclamationmark.triangle.fill", "snowflake": .pokesIce
+        case "hand.raised.fill": .handUp
+        case "checkmark.seal.fill", "checkmark.circle.fill": .celebrates
+        case "drop.fill", "drop": .takesSip
+        case "link", "questionmark.circle": .curious
+        case "gauge.with.dots.needle.67percent", "gauge.high": .checksGauge
+        default: .saysHi
+        }
+    }
 
     static let reactions: [LimoPose] = [
         .saysHi, .celebrates, .handUp, .checksGauge, .pokesIce, .naps,

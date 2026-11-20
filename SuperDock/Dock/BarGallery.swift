@@ -3,7 +3,7 @@ import SwiftUI
 
 extension GallerySheets {
     /// The bar: styles, scale, vertical, app strip, drag, empty bar. Every bar here is the live `BarLayout`, fed a
-    /// context from `TileContext.bar` (the same call `WidgetHost` makes) and fixture tiles.
+    /// context from `TileContext.bar` (the same call `WidgetHost` makes) and the real widget views on fixture data.
     /// Compare with design/mockups/01-bar-styles-scale-interactions.png.
     static var bar: AnyView? { AnyView(BarSheet()) }
 }
@@ -14,23 +14,19 @@ private enum BarFixture {
         BarItem(id: UUID(), size: size, name: name, supportedSizes: TileSize.allCases, view: AnyView(view))
     }
 
-    static var limits: BarItem {
-        item(.medium, "AI Limits", BarsTile(rows: [
-            BarRow(label: "C 5H", value: "62%", fraction: 0.62, color: Palette.claude, detail: "2h 14m"),
-            BarRow(label: "X 5H", value: "86%", fraction: 0.86, color: Palette.coral, detail: "38m")
-        ]))
-    }
-
-    static var agents: BarItem { item(.medium, "Coding Agents", ListTile(rows: Samples.agents)) }
-    static var clock: BarItem { item(.compact, "Clock", ClockTile(time: "10:55", detail: "Thu 19")) }
-    static var cpu: BarItem {
-        item(.compact, "CPU", ChartTile(label: "CPU", value: "23%", series: [.init(values: Samples.cpu, color: Palette.progress)]))
-    }
+    static var limits: BarItem { item(.medium, "AI Limits", AILimitsView(content: .limits(AISamples.limits))) }
+    static var agents: BarItem { item(.medium, "Coding Agents", AgentsBoardView(agents: AISamples.six, now: AISamples.now)) }
+    /// US English like the Time sheet, so the clock reads "Thu 19" as in the mockup whatever this Mac's region is.
+    static let calendar = {
+        var calendar = Samples.calendar
+        calendar.locale = Locale(identifier: "en_US")
+        return calendar
+    }()
+    static var clock: BarItem { item(.compact, "Clock", ClockWidgetView(date: Samples.now, calendar: calendar)) }
+    static var cpu: BarItem { item(.compact, "CPU", CPUTileView(usage: 0.23, history: Samples.cpu.map { $0 / 100 })) }
 
     static func weather(_ size: TileSize) -> BarItem {
-        item(size, "Weather", GlyphTile(caption: "Lisbon", title: "18°", details: ["H 22° · L 15°"]) {
-            Image(systemName: "moon.fill").resizable().scaledToFit().foregroundStyle(Palette.note)
-        })
+        item(size, "Weather", CurrentWeatherView(report: WeatherSamples.lisbon, city: "Lisbon", now: WeatherSamples.night))
     }
 
     static var hero: [BarItem] { [limits, agents, clock] }

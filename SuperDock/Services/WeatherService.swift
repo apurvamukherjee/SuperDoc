@@ -180,6 +180,25 @@ final class WeatherService {
         default: "questionmark"
         }
     }
+
+    /// Eight-point compass name for a wind direction in degrees: 0 → "N", 225 → "SW".
+    nonisolated static func compass(_ degrees: Double) -> String {
+        let points = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"]
+        let index = Int((degrees.truncatingRemainder(dividingBy: 360) + 360).truncatingRemainder(dividingBy: 360) / 45 + 0.5)
+        return points[index % 8]
+    }
+}
+
+extension WeatherService.Report {
+    func isDay(at date: Date) -> Bool {
+        guard let sunrise, let sunset else { return true }
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
+        // Sunrise/sunset are today's; compare times of day so a later hour or tomorrow's forecast still reads right.
+        let seconds = { (date: Date) in date.timeIntervalSince(calendar.startOfDay(for: date)) }
+        let (rise, set) = (seconds(sunrise), seconds(sunset))
+        return rise < set ? (rise..<set).contains(seconds(date)) : true
+    }
 }
 
 // Field names mirror the Open-Meteo JSON.

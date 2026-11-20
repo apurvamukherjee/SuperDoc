@@ -89,10 +89,3 @@ extension SuperWidget {
         }
     }
 }
-
-extension View {
-    /// Tile size follows the Dock's size, so text shrinks to fit instead of truncating.
-    func tileText() -> some View {
-        lineLimit(1).minimumScaleFactor(0.5)
-    }
-}

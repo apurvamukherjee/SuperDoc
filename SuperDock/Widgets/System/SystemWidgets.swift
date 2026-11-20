@@ -1,23 +1,5 @@
 import SwiftUI
 
-/// Label over a big value, with an optional detail line on bigger tiles. Shared by the simple stat widgets.
-struct LegacyStatTile: View {
-    let label: LocalizedStringKey
-    let value: String
-    var detail: String?
-    var tint: Color = .primary
-
-    var body: some View {
-        VStack(spacing: 2) {
-            Text(label).font(.caption2.weight(.semibold)).foregroundStyle(.secondary)
-            Text(value).font(.title3.weight(.semibold)).monospacedDigit().foregroundStyle(tint)
-            if let detail { Text(detail).font(.caption2).foregroundStyle(.secondary) }
-        }
-        .tileText()
-        .accessibilityElement(children: .combine)
-    }
-}
-
 enum SystemFormat {
     static func percent(_ fraction: Double) -> String {
         fraction.formatted(.percent.precision(.fractionLength(0)))

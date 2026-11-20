@@ -1,4 +1,4 @@
 { "id": "builtin.hackernews", "name": "Hacker News", "symbol": "newspaper", "category": "news", "sizes": ["wide", "large"],
   "description": "Front page stories from Hacker News.",
   "source": { "url": "https://hn.algolia.com/api/v1/search?tags=front_page&hitsPerPage=6", "every": 600 },
-  "tile": { "template": "list", "items": "$.hits[*].title", "links": "$.hits[*].url", "open": "https://news.ycombinator.com" } }
+  "tile": { "template": "list", "items": "$.hits[*].title", "links": "$.hits[*].url", "counts": "$.hits[*].points", "open": "https://news.ycombinator.com" } }
