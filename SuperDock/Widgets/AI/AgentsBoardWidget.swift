@@ -11,11 +11,12 @@ struct AgentsBoardWidget: SuperWidget {
     static let supportedSizes: [TileSize] = [.compact, .medium, .wide, .large]
 
     static func view(size: TileSize, settings: Settings) -> some View {
-        AgentsBoardTile(size: size)
+        AgentsBoardTile()
     }
 }
 
 extension AgentStatus {
+    /// Limo's alert pill still uses the old system colours; tiles use `tint` from the design tokens.
     var color: Color {
         switch self {
         case .working: .blue
@@ -35,61 +36,18 @@ extension AgentStatus {
     }
 }
 
+/// Reads the service and hands plain values to `AgentsBoardView`.
 private struct AgentsBoardTile: View {
-    let size: TileSize
     private let service = AgentSessionService.shared
 
     var body: some View {
-        Group {
-            if service.sessions.isEmpty {
-                Image(systemName: "moon.zzz").font(.title3).foregroundStyle(.secondary)
-                    .accessibilityLabel("No coding agents running")
-            } else if size == .compact {
-                counts
-            } else {
-                list
-            }
+        // The minute tick only moves "12m" / "2m ago"; status changes arrive through the service.
+        TimelineView(.everyMinute) { context in
+            AgentsBoardView(agents: service.sessions.map {
+                AgentItem(id: $0.id, project: $0.project, tool: $0.tool, status: $0.status, since: $0.since)
+            }, now: context.date)
         }
         .onAppear { service.subscribe() }
         .onDisappear { service.unsubscribe() }
-    }
-
-    /// One dot + count per status that has sessions.
-    private var counts: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            ForEach(AgentStatus.allCases, id: \.self) { status in
-                let count = service.sessions.filter { $0.status == status }.count
-                if count > 0 {
-                    HStack(spacing: 4) {
-                        Circle().fill(status.color).frame(width: 7, height: 7)
-                        Text("\(count)").font(.caption.monospacedDigit().weight(.semibold))
-                    }
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel("\(count) \(status.title)")
-                }
-            }
-        }
-    }
-
-    private var list: some View {
-        let limit = size == .medium ? 3 : 3 * (size.columns - 1)
-        let shown = service.sessions.prefix(limit)
-        return LazyVGrid(columns: Array(repeating: GridItem(.flexible(), alignment: .leading), count: max(size.columns - 1, 1)),
-                         alignment: .leading, spacing: 2) {
-            ForEach(shown) { session in
-                HStack(spacing: 4) {
-                    Circle().fill(session.status.color).frame(width: 7, height: 7)
-                    // Truncate rather than shrink: one long folder name shouldn't make its row smaller than the rest.
-                    Text(session.project).font(.caption2.weight(.medium)).truncationMode(.middle)
-                    Text(session.tool.title).font(.caption2).foregroundStyle(.secondary).fixedSize()
-                }
-                .lineLimit(1)
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel("\(session.project), \(session.tool.title), \(session.status.title)")
-            }
-            if service.sessions.count > limit {
-                Text("+\(service.sessions.count - limit) more").font(.caption2).foregroundStyle(.secondary)
-            }
-        }
     }
 }

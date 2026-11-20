@@ -14,6 +14,8 @@ final class AgentSessionService {
         var tool: AIProvider
         var project: String
         var status: AgentStatus
+        /// When the current status began, for "Working · 12m" and "2m ago". nil when the source can't tell.
+        var since: Date?
     }
 
     private(set) var sessions: [Session] = []
@@ -80,7 +82,8 @@ final class AgentSessionService {
                 let changed = Date(timeIntervalSince1970: (session.statusUpdatedAt ?? session.updatedAt) / 1000)
                 return Session(id: "claude-\(session.sessionId)", tool: .claude,
                                project: URL(fileURLWithPath: session.cwd).lastPathComponent,
-                               status: AgentStatusRules.claude(status: session.status, changedAt: changed, now: now))
+                               status: AgentStatusRules.claude(status: session.status, changedAt: changed, now: now),
+                               since: changed)
             } catch {
                 // Claude rewrites these files constantly; a half-written read is normal and fixed on the next tick.
                 log.debug("Skipping \(file.lastPathComponent): \(error)")
@@ -104,9 +107,11 @@ final class AgentSessionService {
                 }
             }
             let cached = codexCache[rollout.url]
+            let status = AgentStatusRules.codex(lastEvent: cached?.lastEvent, modifiedAt: rollout.modified, now: now)
+            // A rollout's mtime is its last write: when a turn ended or asked, but not when work started.
             return Session(id: "codex-\(rollout.url.lastPathComponent)", tool: .codex,
                            project: cached?.cwd.map { URL(fileURLWithPath: $0).lastPathComponent } ?? "Codex",
-                           status: AgentStatusRules.codex(lastEvent: cached?.lastEvent, modifiedAt: rollout.modified, now: now))
+                           status: status, since: status == .working ? nil : rollout.modified)
         }
     }
 }
