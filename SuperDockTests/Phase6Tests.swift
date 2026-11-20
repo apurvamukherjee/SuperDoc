@@ -38,10 +38,34 @@ struct TimeMathTests {
     }
 
     @Test func moonPhases() {
-        #expect(MoonPhase(date: MoonPhase.knownNewMoon).name == "New Moon")
+        #expect(MoonPhase(date: MoonPhase.knownNewMoon).name == "New moon")
         let full = MoonPhase.knownNewMoon.addingTimeInterval(MoonPhase.synodicMonth / 2 * 86_400)
-        #expect(MoonPhase(date: full).name == "Full Moon")
+        #expect(MoonPhase(date: full).name == "Full moon")
         // Late morning UTC on 2026-11-24 is a full moon (published tables); the mean-month estimate should agree.
         #expect(MoonPhase(date: Date(timeIntervalSince1970: 1_795_519_800)).symbol == "moonphase.full.moon")
+        #expect(MoonPhase(date: full).illumination > 0.999)
+        #expect(MoonPhase(date: MoonPhase.knownNewMoon).illumination < 0.001)
+        // The mockup's evening of 19 Nov 2026 (full moon on the 24th): about three-quarters lit.
+        let mockup = MoonPhase(date: Date(timeIntervalSince1970: 1_795_109_100))
+        #expect(mockup.isWaxing && mockup.daysToNext == 5)
+        #expect(abs(mockup.illumination - 0.75) < 0.03)
+    }
+
+    @Test func periodsAndWeeks() throws {
+        let evening = try #require(calendar.date(from: DateComponents(year: 2026, month: 11, day: 19, hour: 17, minute: 25)))
+        #expect(TimeMath.daysLeft(in: .year, at: evening, calendar: calendar) == 42)
+        #expect(TimeMath.segments(of: .month, at: evening, calendar: calendar) == 30)
+        #expect(TimeMath.isoWeek(of: evening, timeZone: utc) == (47, 53))
+        let newYear2025 = try #require(calendar.date(from: DateComponents(year: 2025, month: 1, day: 1)))
+        #expect(TimeMath.isoWeek(of: newYear2025, timeZone: utc) == (1, 52))
+    }
+
+    @Test func zoneOffsets() {
+        #expect(TimeMath.offsetLabel(minutes: 0) == nil)
+        #expect(TimeMath.offsetLabel(minutes: -810) == "−13½h")
+        #expect(TimeMath.offsetLabel(minutes: 210) == "+3½h")
+        #expect(TimeMath.offsetLabel(minutes: 30) == "+½h")
+        #expect(TimeMath.offsetLabel(minutes: 345) == "+5:45h")
+        #expect(TimeMath.offsetLabel(minutes: -120) == "−2h")
     }
 }

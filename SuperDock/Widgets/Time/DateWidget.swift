@@ -11,27 +11,7 @@ struct DateWidget: SuperWidget {
 
     static func view(size: TileSize, settings: Settings) -> some View {
         TimelineView(.everyMinute) { context in
-            if size == .compact {
-                // Calendar-page look: weekday over the day number.
-                VStack(spacing: 0) {
-                    Text(context.date, format: .dateTime.weekday(.abbreviated))
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.red)
-                        .textCase(.uppercase)
-                    Text(context.date, format: .dateTime.day())
-                        .font(.title.weight(.medium))
-                }
-                .tileText()
-            } else {
-                VStack(spacing: 2) {
-                    Text(context.date, format: .dateTime.weekday(.wide))
-                        .font(.headline)
-                    Text(context.date, format: .dateTime.day().month(.wide))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                .tileText()
-            }
+            DateWidgetView(date: context.date)
         }
     }
 }
