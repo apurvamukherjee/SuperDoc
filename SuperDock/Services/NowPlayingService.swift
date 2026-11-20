@@ -21,6 +21,14 @@ final class NowPlayingService {
         var album: String
         var isPlaying: Bool
         var bundleID: String
+        /// Seconds; nil when the player doesn't say.
+        var duration: Double?
+    }
+
+    /// Where playback was at a moment, so the tile can extrapolate the position instead of polling the player.
+    struct Position: Equatable, Sendable {
+        var seconds: Double
+        var date: Date
     }
 
     enum Command {
@@ -39,6 +47,9 @@ final class NowPlayingService {
     private(set) var track: Track?
     /// Cover art for `track`, fetched from the player over Apple Events (one Automation prompt per player).
     private(set) var artwork: NSImage?
+    /// Top-left and bottom-right averages of `artwork`, for the tile tint. Empty without artwork.
+    private(set) var artworkColors: [NSColor] = []
+    private(set) var position: Position?
 
     private static let sources = [
         ("com.apple.Music.playerInfo", "com.apple.Music"),
@@ -51,23 +62,73 @@ final class NowPlayingService {
             observers.append(DistributedNotificationCenter.default().addObserver(
                 forName: .init(name), object: nil, queue: .main
             ) { [weak self] note in
-                let track = Self.track(from: note.userInfo ?? [:], bundleID: bundleID)
-                MainActor.assumeIsolated { self?.update(track) }
+                let info = note.userInfo ?? [:]
+                let track = Self.track(from: info, bundleID: bundleID)
+                // Spotify reports its position; Music doesn't, so `update` asks it.
+                let reported = info["Playback Position"] as? Double
+                MainActor.assumeIsolated { self?.update(track, reportedPosition: reported) }
             })
         }
     }
 
-    private func update(_ new: Track?) {
+    private func update(_ new: Track?, reportedPosition: Double?) {
         let trackChanged = new?.title != track?.title || new?.album != track?.album || new?.bundleID != track?.bundleID
         track = new
+        updatePosition(for: new, reported: reportedPosition)
         guard trackChanged else { return }
         artwork = nil
+        artworkColors = []
         guard let new else { return }
         Task { [weak self] in
             let image = await Self.fetchArtwork(bundleID: new.bundleID)
             // Skip stale results if the track changed again while we were fetching.
             guard let self, self.track?.title == new.title, self.track?.bundleID == new.bundleID else { return }
             self.artwork = image
+            self.artworkColors = image.map(Self.cornerColors) ?? []
+        }
+    }
+
+    // ponytail: re-anchored only on player notifications, so a seek inside Music drifts until the next play/pause
+    // or track change; poll `player position` while playing if that matters.
+    private func updatePosition(for new: Track?, reported: Double?) {
+        if let reported {
+            position = Position(seconds: reported, date: .now)
+            return
+        }
+        guard let new, new.bundleID == "com.apple.Music" else {
+            position = nil
+            return
+        }
+        Task { [weak self] in
+            // Same Automation permission as the artwork; a declined prompt just hides the progress bar.
+            guard let seconds = Self.runScript("tell application \"Music\" to get player position")?.doubleValue,
+                  let self, self.track == new else { return }
+            self.position = Position(seconds: seconds, date: .now)
+        }
+    }
+
+    /// Averages the artwork's top-left and bottom-right quarters on a 16 × 16 thumbnail.
+    private static func cornerColors(of image: NSImage) -> [NSColor] {
+        let side = 16
+        guard let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil),
+              let space = CGColorSpace(name: CGColorSpace.sRGB),
+              let context = CGContext(data: nil, width: side, height: side, bitsPerComponent: 8, bytesPerRow: side * 4,
+                                      space: space, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return [] }
+        context.interpolationQuality = .medium
+        context.draw(cgImage, in: CGRect(x: 0, y: 0, width: side, height: side))
+        guard let pixels = context.data?.assumingMemoryBound(to: UInt8.self) else { return [] }
+        let half = side / 2
+        // Bitmap memory starts at the top row.
+        return [(0, 0), (half, half)].map { originX, originY in
+            var sum = [0.0, 0.0, 0.0]
+            for row in originY..<originY + half {
+                for column in originX..<originX + half {
+                    let offset = (row * side + column) * 4
+                    for channel in 0..<3 { sum[channel] += Double(pixels[offset + channel]) }
+                }
+            }
+            let count = Double(half * half) * 255
+            return NSColor(srgbRed: sum[0] / count, green: sum[1] / count, blue: sum[2] / count, alpha: 1)
         }
     }
 
@@ -103,8 +164,10 @@ final class NowPlayingService {
     private nonisolated static func track(from info: [AnyHashable: Any], bundleID: String) -> Track? {
         let state = info["Player State"] as? String
         guard state != "Stopped", let title = info["Name"] as? String else { return nil }
+        // Music sends "Total Time", Spotify "Duration", both in milliseconds.
+        let millis = (info["Total Time"] ?? info["Duration"]) as? Double
         return Track(title: title, artist: info["Artist"] as? String ?? "", album: info["Album"] as? String ?? "",
-                     isPlaying: state == "Playing", bundleID: bundleID)
+                     isPlaying: state == "Playing", bundleID: bundleID, duration: millis.map { $0 / 1000 })
     }
 
     func send(_ command: Command) {
