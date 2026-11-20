@@ -11,54 +11,45 @@ struct NowPlayingWidget: SuperWidget {
     static var name: String { String(localized: "Now Playing") }
     static let category = WidgetCategory.media
     static let symbol = "play.circle"
-    static let supportedSizes: [TileSize] = [.medium, .wide]
+    static let supportedSizes: [TileSize] = [.compact, .medium, .wide, .large]
 
     static func view(size: TileSize, settings: Settings) -> some View {
-        NowPlayingTile(size: size)
+        NowPlayingTile()
     }
 }
 
 private struct NowPlayingTile: View {
-    let size: TileSize
     private let service = NowPlayingService.shared
 
     var body: some View {
-        HStack(spacing: 10) {
-            if let track = service.track {
-                // Cover only: the title lives in the tooltip and VoiceOver label, which keeps the tile clean.
-                cover(for: track)
-                    .help("\(track.title) — \(track.artist)")
-                    .accessibilityLabel("\(track.title), \(track.artist)")
-                Spacer(minLength: 0)
-            } else {
-                Text("Nothing playing").font(.caption).foregroundStyle(.secondary).frame(maxWidth: .infinity)
+        if let track = service.track, track.isPlaying, track.duration != nil, service.position != nil {
+            // Ticks only while something plays; paused or unknown length, the tile rests.
+            TimelineView(.periodic(from: .now, by: 1)) { context in
+                NowPlayingView(track: model(track, at: context.date), send: service.send)
             }
-            HStack(spacing: 4) {
-                if size == .wide { control("backward.fill", "Previous", .previous) }
-                control(service.track?.isPlaying == true ? "pause.fill" : "play.fill", "Play or pause", .playPause)
-                control("forward.fill", "Next", .next)
-            }
+        } else {
+            NowPlayingView(track: service.track.map { model($0, at: .now) }, send: service.send)
         }
     }
 
-    private func cover(for track: NowPlayingService.Track) -> some View {
-        Group {
-            if let artwork = service.artwork {
-                Image(nsImage: artwork).resizable().scaledToFill()
-            } else if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: track.bundleID) {
-                Image(nsImage: NSWorkspace.shared.icon(forFile: url.path)).resizable().scaledToFit()
-            }
+    private func model(_ track: NowPlayingService.Track, at date: Date) -> NowPlayingTrack {
+        let elapsed = service.position.map { $0.seconds + (track.isPlaying ? date.timeIntervalSince($0.date) : 0) }
+        var progress: Double?
+        var time: String?
+        if let elapsed, let duration = track.duration, duration > 0 {
+            let clamped = min(max(elapsed, 0), duration)
+            progress = clamped / duration
+            time = "\(Self.clock(clamped)) / \(Self.clock(duration))"
         }
-        .aspectRatio(1, contentMode: .fit)
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        return NowPlayingTrack(
+            title: track.title, artist: track.artist, album: track.album, isPlaying: track.isPlaying,
+            artwork: service.artwork.map { Image(nsImage: $0) },
+            art: service.artworkColors.isEmpty ? NowPlayingTrack.fallbackArt : service.artworkColors.map { Color(nsColor: $0) },
+            progress: progress, time: time)
     }
 
-    private func control(_ symbol: String, _ label: LocalizedStringKey, _ command: NowPlayingService.Command) -> some View {
-        Button { service.send(command) } label: {
-            Image(systemName: symbol).font(.title3).frame(width: 30, height: 30).contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(label)
+    private static func clock(_ seconds: Double) -> String {
+        Duration.seconds(seconds).formatted(.time(pattern: .minuteSecond))
     }
 }
 
@@ -67,26 +58,36 @@ private struct NowPlayingTile: View {
 enum QuickAction: String, Codable, CaseIterable {
     case lock, sleepDisplays, screenshot, emptyTrash, hiddenFiles, darkMode
 
-    var title: LocalizedStringKey {
+    var title: String {
         switch self {
-        case .lock: "Lock Screen"
-        case .sleepDisplays: "Sleep Displays"
-        case .screenshot: "Screenshot"
-        case .emptyTrash: "Empty Trash"
-        case .hiddenFiles: "Show/Hide Hidden Files"
-        case .darkMode: "Toggle Dark Mode"
+        case .lock: String(localized: "Lock Screen")
+        case .sleepDisplays: String(localized: "Sleep Displays")
+        case .screenshot: String(localized: "Screenshot")
+        case .emptyTrash: String(localized: "Empty Trash")
+        case .hiddenFiles: String(localized: "Show/Hide Hidden Files")
+        case .darkMode: String(localized: "Toggle Dark Mode")
         }
     }
 
     var symbol: String {
         switch self {
-        case .lock: "lock.fill"
-        case .sleepDisplays: "moon.fill"
-        case .screenshot: "camera.viewfinder"
+        case .lock: "lock"
+        case .sleepDisplays: "display"
+        case .screenshot: "camera"
         case .emptyTrash: "trash"
         case .hiddenFiles: "eye"
         case .darkMode: "circle.lefthalf.filled"
         }
+    }
+
+    /// The toggles whose setting is on right now; their buttons light up.
+    static func lit() -> Set<QuickAction> {
+        var lit = Set<QuickAction>()
+        if UserDefaults.standard.string(forKey: "AppleInterfaceStyle") == "Dark" { lit.insert(.darkMode) }
+        if CFPreferencesGetAppBooleanValue("AppleShowAllFiles" as CFString, "com.apple.finder" as CFString, nil) {
+            lit.insert(.hiddenFiles)
+        }
+        return lit
     }
 
     @MainActor
@@ -153,21 +154,7 @@ struct QuickActionsWidget: SuperWidget {
     static var defaultSettings: Settings { Settings() }
 
     static func view(size: TileSize, settings: Settings) -> some View {
-        // Two rows of buttons per column.
-        let shown = settings.actions.prefix(size == .compact ? 1 : size.columns * 2)
-        let columns = Array(repeating: GridItem(.flexible()), count: size == .compact ? 1 : size.columns)
-        return LazyVGrid(columns: columns, spacing: 4) {
-            ForEach(Array(shown), id: \.self) { action in
-                Button { action.run() } label: {
-                    Image(systemName: action.symbol)
-                        .font(size == .compact ? .title2 : .body)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                }
-                .buttonStyle(.plain)
-                .help(Text(action.title))
-                .accessibilityLabel(Text(action.title))
-            }
-        }
+        QuickActionsTile(actions: settings.actions)
     }
 
     static func settingsView(_ settings: Binding<Settings>) -> AnyView? {
@@ -187,6 +174,23 @@ struct QuickActionsWidget: SuperWidget {
     }
 }
 
+private struct QuickActionsTile: View {
+    let actions: [QuickAction]
+    @State private var lit = QuickAction.lit()
+
+    var body: some View {
+        QuickActionsView(items: actions.map { action in
+            QuickActionsView.Item(id: action.rawValue, symbol: action.symbol, label: action.title,
+                                  isOn: lit.contains(action)) {
+                action.run()
+                lit = QuickAction.lit()
+            }
+        })
+        // Dark Mode can change elsewhere while the tile is hidden.
+        .onAppear { lit = QuickAction.lit() }
+    }
+}
+
 // MARK: - Control Center
 
 struct VolumeWidget: SuperWidget {
@@ -198,18 +202,16 @@ struct VolumeWidget: SuperWidget {
     static let supportedSizes: [TileSize] = [.compact, .medium, .wide]
 
     static func view(size: TileSize, settings: Settings) -> some View {
-        let audio = AudioService.shared
-        let symbol = audio.isMuted ? "speaker.slash.fill" : "speaker.wave.\(min(Int(audio.volume * 3.99), 3)).fill"
-        return HStack(spacing: 6) {
-            Button { audio.toggleMute() } label: { Image(systemName: symbol).font(.title3).frame(width: 28) }
-                .buttonStyle(.plain)
-                .accessibilityLabel(audio.isMuted ? "Unmute" : "Mute")
-            if size != .compact, audio.hasVolume {
-                Slider(value: Binding(get: { Double(audio.volume) }, set: { audio.setVolume(Float($0)) }), in: 0...1)
-                    .controlSize(.small)
-                    .accessibilityLabel("Volume")
-            }
-        }
+        VolumeTile()
+    }
+}
+
+private struct VolumeTile: View {
+    private let audio = AudioService.shared
+
+    var body: some View {
+        VolumeView(level: Double(audio.volume), isMuted: audio.isMuted, isAdjustable: audio.hasVolume,
+                   setLevel: { audio.setVolume(Float($0)) }, toggleMute: audio.toggleMute)
     }
 }
 
@@ -230,18 +232,9 @@ private struct BrightnessTile: View {
     @State private var value = BrightnessControl.brightness
 
     var body: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "sun.max.fill").font(.title3).accessibilityHidden(true)
-            if let value {
-                Slider(value: Binding(get: { Double(value) }, set: {
-                    self.value = Float($0)
-                    BrightnessControl.set(Float($0))
-                }), in: 0...1)
-                .controlSize(.small)
-                .accessibilityLabel("Brightness")
-            } else {
-                Text("Not adjustable").font(.caption2).foregroundStyle(.secondary)
-            }
+        BrightnessView(level: value.map(Double.init)) { level in
+            value = Float(level)
+            BrightnessControl.set(Float(level))
         }
         // Re-read when shown, since brightness keys change it behind our back.
         .onAppear { value = BrightnessControl.brightness }
@@ -265,18 +258,11 @@ private struct WiFiTile: View {
     @State private var isOn = WiFiControl.isOn
 
     var body: some View {
-        Button {
+        WiFiView(isOn: isOn) {
             guard let isOn else { return }
             WiFiControl.setPower(!isOn)
             self.isOn = WiFiControl.isOn
-        } label: {
-            Image(systemName: isOn == true ? "wifi" : "wifi.slash").font(.title2)
-                .foregroundStyle(isOn == true ? Color.accentColor : .secondary)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .buttonStyle(.plain)
-        .disabled(isOn == nil)
-        .accessibilityLabel(isOn == true ? "Turn Wi-Fi off" : "Turn Wi-Fi on")
         .onAppear { isOn = WiFiControl.isOn }
     }
 }
