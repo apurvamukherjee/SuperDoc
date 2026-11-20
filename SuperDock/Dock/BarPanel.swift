@@ -6,6 +6,7 @@ final class BarPanel: NSPanel {
     private let content: NSView
     private var background: NSView?
     private var applied: AppearancePrefs.Values?
+    private var accessibilityObserver: NSObjectProtocol?
 
     init(content rootView: some View) {
         let hosting = NSHostingView(rootView: rootView)
@@ -22,19 +23,29 @@ final class BarPanel: NSPanel {
         hasShadow = true
         hidesOnDeactivate = false
 
-        let container = NSView()
+        let container = AppearanceView()
+        container.onAppearanceChange = { [weak self] in self?.applyAppearance() }
         container.addSubview(hosting)
         contentView = container
+        // The tiles follow Reduce Transparency through SwiftUI; the AppKit background has to be told.
+        accessibilityObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.applyAppearance() }
+        }
         applyAppearance()
     }
 
     override var canBecomeKey: Bool { true }   // lets widgets host text fields
 
-    /// Rebuilds the background when the theme settings changed. Content sits on top as a sibling,
-    /// so the background's opacity never fades the tiles.
+    /// Rebuilds the background when the theme settings, light/dark mode or Reduce Transparency changed. Content sits on
+    /// top as a sibling, so the background's opacity never fades the tiles.
     func applyAppearance() {
-        let values = AppearancePrefs.current
-        guard values != applied, let container = contentView else { return }
+        guard let container = contentView else { return }
+        var values = AppearancePrefs.current
+        // The view's own appearance is already updated when it reports a switch; NSApp's may still lag behind.
+        values.isDark = container.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        guard values != applied else { return }
         applied = values
         background?.removeFromSuperview()
         let view = AppearancePrefs.background(for: values)
@@ -44,5 +55,15 @@ final class BarPanel: NSPanel {
         background = view
         content.frame = container.bounds
         invalidateShadow()
+    }
+}
+
+/// Reports light/dark switches, which AppKit announces per view rather than by notification.
+private final class AppearanceView: NSView {
+    var onAppearanceChange: (() -> Void)?
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        onAppearanceChange?()
     }
 }

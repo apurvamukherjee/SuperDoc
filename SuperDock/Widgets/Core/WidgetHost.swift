@@ -12,64 +12,63 @@ final class BarModel {
     var showsAppStrip = false
 }
 
-/// Lays out the tiles inside the bar panel.
+/// The live bar: turns prefs, the system's mode and the layout store into a `BarLayout`.
+/// Tiles get everything through `\.tile`, so nothing below here reads prefs.
 struct WidgetHost: View {
     let store: LayoutStore
     let bar: BarModel
     @Environment(\.openSettings) private var openSettings
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @AppStorage(AppearancePrefs.styleKey) private var style = BarStyle.glass
     @AppStorage(AppearancePrefs.accentKey) private var accent = ""
-
-    private var spacing: CGFloat { BarPlacement.tileSpacing }
-    private var unit: CGFloat { BarPlacement.tileUnit(thickness: bar.thickness) }
+    @AppStorage(AppearancePrefs.tileBackgroundsKey) private var tileBackgrounds = true
+    @AppStorage(AppearancePrefs.cornerRadiusKey) private var cornerRadius = AppearancePrefs.defaultCornerRadius
+    @State private var isDropTargeted = false
 
     var body: some View {
-        let stack = bar.isVertical ? AnyLayout(VStackLayout(spacing: spacing)) : AnyLayout(HStackLayout(spacing: spacing))
-        stack {
-            if bar.showsAppStrip, bar.isActive {
-                AppStripView(unit: unit, isVertical: bar.isVertical)
-                Divider().frame(maxHeight: unit)
-            }
-            ForEach(bar.isActive ? store.tiles : []) { tile in
-                TileView(tile: tile, frame: frame(for: tile.size))
-                    .contextMenu { menu(for: tile) }
-                    .draggable(tile.id.uuidString)
-                    .dropDestination(for: String.self) { ids, _ in
-                        guard let id = ids.first.flatMap(UUID.init(uuidString:)) else { return false }
-                        store.move(id, to: tile.id)
-                        return true
-                    }
-            }
-            if store.tiles.isEmpty {
-                Button(action: openWidgetSettings) {
-                    Image(systemName: "plus").font(.title2).frame(width: unit, height: unit)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Add Widget")
-            }
+        if bar.isActive {
+            BarLayout(context: context, items: store.tiles.map(item), appStrip: bar.showsAppStrip ? AppStrip.shared.items : nil,
+                      actions: actions, isDropTargeted: isDropTargeted)
+                // Widget cards dragged from Settings carry their widget id.
+                .dropDestination(for: String.self) { ids, _ in
+                    ids.contains(where: add)
+                } isTargeted: { isDropTargeted = $0 }
+                // The panel can become key (for text fields), which would otherwise draw focus rings around tile buttons.
+                .focusEffectDisabled()
         }
-        .padding(spacing)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .tint(Color(hex: accent) ?? .accentColor)
-        // The panel can become key (for text fields), which would otherwise draw focus rings around tile buttons.
-        .focusEffectDisabled()
     }
 
-    private func frame(for size: TileSize) -> CGSize {
-        let length = CGFloat(size.columns) * unit + CGFloat(size.columns - 1) * spacing
-        return bar.isVertical ? CGSize(width: unit, height: length) : CGSize(width: length, height: unit)
+    private var context: TileContext {
+        .bar(surface: .bar(style, isDark: colorScheme == .dark, reduceTransparency: reduceTransparency,
+                           tileBackgrounds: tileBackgrounds),
+             accent: Color(hex: accent) ?? .accentColor, cornerRadius: cornerRadius, thickness: bar.thickness,
+             isVertical: bar.isVertical)
     }
 
-    @ViewBuilder
-    private func menu(for tile: Tile) -> some View {
-        if let widget = WidgetRegistry.widget(tile.widgetId), widget.supportedSizes.count > 1 {
-            Picker("Size", selection: Binding(get: { tile.size }, set: { store.setSize($0, for: tile.id) })) {
-                ForEach(widget.supportedSizes) { Text($0.title).tag($0) }
-            }
+    private func item(_ tile: Tile) -> BarItem {
+        guard let widget = WidgetRegistry.widget(tile.widgetId) else {
+            // Saved layout names a widget this build doesn't have; keep it so a later version can show it again.
+            return BarItem(id: tile.id, size: tile.size, name: String(localized: "Unknown widget"), supportedSizes: [tile.size],
+                           view: AnyView(UnknownWidgetTile()))
         }
-        Button("Widget Settings…", action: openWidgetSettings)
-        Button("Add Widget…", action: openWidgetSettings)
-        Divider()
-        Button("Remove", role: .destructive) { store.remove(tile.id) }
+        return BarItem(id: tile.id, size: tile.size, name: widget.name, supportedSizes: widget.supportedSizes,
+                       view: widget.tileView(size: tile.size, settings: tile.settings))
+    }
+
+    private var actions: BarActions {
+        BarActions(
+            move: { store.move($0, to: $1) },
+            setSize: { store.setSize($0, for: $1) },
+            remove: { store.remove($0) },
+            openWidgets: openWidgetSettings
+        )
+    }
+
+    private func add(_ widgetId: String) -> Bool {
+        guard let size = WidgetRegistry.widget(widgetId)?.supportedSizes.first else { return false }
+        store.add(widgetId, size: size)
+        return true
     }
 
     private func openWidgetSettings() {
@@ -80,28 +79,14 @@ struct WidgetHost: View {
     }
 }
 
-private struct TileView: View {
-    let tile: Tile
-    let frame: CGSize
-
-    @AppStorage(AppearancePrefs.tileBackgroundsKey) private var tileBackgrounds = true
-    @AppStorage(AppearancePrefs.cornerRadiusKey) private var cornerRadius = AppearancePrefs.defaultCornerRadius
+private struct UnknownWidgetTile: View {
+    @Environment(\.tile) private var tile
 
     var body: some View {
-        Group {
-            if let widget = WidgetRegistry.widget(tile.widgetId) {
-                widget.tileView(size: tile.size, settings: tile.settings)
-            } else {
-                // Saved layout names a widget this build doesn't have; keep it so a later version can show it again.
-                Image(systemName: "questionmark.square.dashed")
-                    .foregroundStyle(.secondary)
-                    .accessibilityLabel("Unknown widget")
-            }
-        }
-        .padding(6)
-        .frame(width: frame.width, height: frame.height)
-        .background(tileBackgrounds ? AnyShapeStyle(.quaternary.opacity(0.6)) : AnyShapeStyle(.clear),
-                    in: RoundedRectangle(cornerRadius: max(cornerRadius - 6, 4), style: .continuous))
-        .accessibilityElement(children: .combine)
+        Image(systemName: "questionmark.square.dashed")
+            .font(.system(size: 22 * tile.scale))
+            .foregroundStyle(tile.surface.tertiary)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .accessibilityLabel("Unknown widget")
     }
 }
