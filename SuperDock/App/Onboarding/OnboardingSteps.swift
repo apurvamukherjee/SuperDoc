@@ -179,7 +179,8 @@ struct OnboardingAccessibilityStep: View {
                     .position(x: 203.5, y: 206)
             }
             .frame(width: OnboardingTheme.windowSize.width, height: OnboardingTheme.heroHeight, alignment: .topLeading)
-            StepText(label: standalone ? String(localized: "Welcome back") : stepLabel(.accessibility), heading: String(localized: "One permission, so I can find your Dock"),
+            StepText(label: standalone ? String(localized: "Welcome back") : stepLabel(.accessibility),
+                     heading: String(localized: "One permission, so I can find your Dock"),
                      copy: String(localized: """
                         Accessibility lets SuperDock read where your Dock is and how big it is, so the bar can sit beside it. \
                         It never reads your screen, prompts or keystrokes.
