@@ -24,6 +24,7 @@ Source of truth: the mockups in `design/mockups/`. The old UI is being replaced,
 - Paper is a new bar style alongside Liquid Glass, Frosted, Solid dark and Solid light.
 - Wind arrows follow the iOS convention (point where the wind blows), not the mockup.
 - A generated password hides again 60 s after it's shown, so it isn't left on screen during a screen share.
+- The stale-data badge sits on the tile's bottom-trailing corner and half overhangs the tile, like a notification badge.
 - Mockup sources: images 5 and 10 were identical, one kept. The bar sheet is the newer version that says "Limo".
 - The foundation's empty-state face is `LimoFace` (sleeping pose only). Before phase 2 the old alert code was renamed to `LimoController` in `SuperDock/Limo/` (its defaults key stays `buddy.alerts` so users keep their setting).
 - Before phase 2, `StackPopover`, `ShelfList` and `LaunchpadWidget` moved into their own files under `Widgets/Files/` so the tile owner and the surfaces owner never edit the same file.
