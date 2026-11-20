@@ -14,6 +14,7 @@ Source of truth: the mockups in `design/mockups/`. The old UI is being replaced,
 | `06-limo-character.png` | Limo (formerly Buddy): pupils/gaze, arms and feet, blink + breath, coral cheek mood light, 12 reactions, alert pills, presence levels, Lively/Calm/Hidden |
 | `07-settings-widgets.png` | Settings window: sidebar (General, Placement, Widgets, Plugins, Profiles, Appearance, AI & Agents, Limo, Windows, Clipboard, About), widget gallery with "Your bar" strip, category chips, cards with live preview + size pills + Add |
 | `08-around-the-bar-windows-clipboard-notch-popovers.png` | Notch shelf, Copy Peek, ⌃⌥N HUD, menu bar extra, clipboard panel, ⌥Tab switcher, Dock hover preview, Launchpad, Stack and Shelf popovers |
+| `09-onboarding.png` | First run, 4 Paper-themed steps hosted by Limo: Welcome, Placement (live preview), Accessibility (auto-advances when granted), starter set (Developer / Everyday / Just me) with confetti and the window shrinking into the bar |
 
 ## Decisions
 
