@@ -206,16 +206,6 @@ extension WeatherService.Place {
 }
 
 extension WeatherService.Report {
-    func isDay(at date: Date) -> Bool {
-        guard let sunrise, let sunset else { return true }
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = timeZone
-        // Sunrise/sunset are today's; compare times of day so a later hour or tomorrow's forecast still reads right.
-        let seconds = { (date: Date) in date.timeIntervalSince(calendar.startOfDay(for: date)) }
-        let (rise, set) = (seconds(sunrise), seconds(sunset))
-        return rise < set ? (rise..<set).contains(seconds(date)) : true
-    }
-
     func isTwilight(at date: Date) -> Bool {
         [sunrise, sunset].contains { event in event.map { abs($0.timeIntervalSince(date)) < 40 * 60 } ?? false }
     }

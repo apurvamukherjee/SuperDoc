@@ -35,10 +35,11 @@ final class WindowFeatures {
         previews = DockHoverPreviews(tracker: tracker)
         hudPanel.ignoresMouseEvents = true
         frozen.onFrozen = { app in
-            alerts.show(message: String(localized: "\(app.localizedName ?? "An app") isn't responding"),
+            alerts.show(message: String(localized: "\(app.localizedName ?? "An app") is frozen"),
                         symbol: "exclamationmark.triangle.fill", color: Palette.hot,
                         action: (String(localized: "Force Quit"), { app.forceTerminate() }),
-                        above: anchor())
+                        above: anchor(),
+                        detail: String(localized: "\(FrozenAppMonitor.secondsUnresponsive)s, not responding"))
         }
         defaultsObserver = NotificationCenter.default.addObserver(
             forName: UserDefaults.didChangeNotification, object: nil, queue: .main

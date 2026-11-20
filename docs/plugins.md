@@ -58,6 +58,7 @@ Settings → Plugins → Reload picks up edits. A file that doesn't load is list
 | `tile.value` | value/text/gauge | JSONPath to the value. `{key}` placeholders are allowed. |
 | `tile.subtitle` | | JSONPath to a second line (`value` template). |
 | `tile.items`, `tile.links` | list | JSONPaths with `[*]` for titles and their URLs. |
+| `tile.counts` | | JSONPath with `[*]` for a number shown before each list item (points, score), e.g. `$.hits[*].points`. Matched to `tile.items` by position. |
 | `tile.max` | | Gauge maximum (default 100). |
 | `tile.format` | | `text`, `number`, `percent` (value is 0–100), `bytes`, `currency` (with `tile.currency`, e.g. `"EUR"`). |
 | `tile.prefix`, `tile.suffix`, `tile.label` | | Extra text around the value, and the label. |
@@ -67,7 +68,7 @@ Settings → Plugins → Reload picks up edits. A file that doesn't load is list
 
 - **value**: label over one big formatted value, with an optional subtitle.
 - **text**: a short paragraph (quotes, facts).
-- **list**: the first 2–3 titles, each opening its link.
+- **list**: the first 2–3 titles, each opening its link, with its count in front when `tile.counts` is set.
 - **gauge**: a ring showing `value` out of `max`.
 
 ### JSONPath subset

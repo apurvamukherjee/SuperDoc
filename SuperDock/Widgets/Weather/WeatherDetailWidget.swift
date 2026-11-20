@@ -106,7 +106,7 @@ struct WeatherDetailView: View {
         case .feelsLike:
             Text(report.humidity.map { "Humid \($0)%" } ?? "Actual \(degrees(report.temperature))").tileStyle(.detail)
         case .wind:
-            Text([speedUnit, report.windDirection.map(Self.compass)].compactMap(\.self).joined(separator: " "))
+            Text([speedUnit, report.windDirection.map(WeatherService.compass)].compactMap(\.self).joined(separator: " "))
                 .tileStyle(.detail)
         case .uv:
             UVScale(index: report.uvIndex)
@@ -139,12 +139,6 @@ struct WeatherDetailView: View {
         case .uv: report.uvIndex.formatted(.number.precision(.fractionLength(0)))
         case .rain: "\(report.rainChance)%"
         }
-    }
-
-    static func compass(_ degrees: Double) -> String {
-        let points = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"]
-        let index = Int((degrees.truncatingRemainder(dividingBy: 360) + 360).truncatingRemainder(dividingBy: 360) / 45 + 0.5)
-        return points[index % 8]
     }
 }
 

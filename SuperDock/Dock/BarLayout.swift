@@ -216,7 +216,7 @@ struct BarLayout: View {
     }
 }
 
-/// The empty bar: one dashed slot inviting the first widget, with Limo beside it.
+/// The empty bar: one dashed slot inviting the first widget, with Limo beside it, awake and wondering what goes there.
 private struct BarInvitation: View {
     let isTargeted: Bool
     let action: () -> Void
@@ -227,7 +227,7 @@ private struct BarInvitation: View {
             let stack = tile.isPortrait ? AnyLayout(VStackLayout(spacing: 6 * tile.scale))
                                         : AnyLayout(HStackLayout(spacing: 10 * tile.scale))
             stack {
-                LimoFace(snoring: false).frame(width: 0.4 * tile.unit, height: 0.4 * tile.unit)
+                LimoFace(snoring: false, pose: .curious).frame(width: 0.4 * tile.unit, height: 0.4 * tile.unit)
                 VStack(alignment: tile.isPortrait ? .center : .leading, spacing: 1) {
                     Text("Add widgets").lineLimit(2).tileStyle(.title)
                     if tile.showsDetail { Text("or drop one here").lineLimit(2).tileStyle(.detail) }

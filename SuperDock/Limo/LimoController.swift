@@ -60,22 +60,10 @@ final class LimoController {
     /// `action` adds a button (e.g. Force Quit) that also dismisses the pill. `pose` defaults to one read off `symbol`.
     func show(message: String, symbol: String, color: Color, action: (title: String, run: () -> Void)?, above anchor: NSRect?,
               detail: String? = nil, pose: LimoPose? = nil) {
-        let alert = LimoAlert(title: message, detail: detail, pose: pose ?? Self.pose(for: symbol), tint: color, action: action)
+        let alert = LimoAlert(title: message, detail: detail, pose: pose ?? LimoPose(alertSymbol: symbol), tint: color, action: action)
         if stage.alert?.isUrgent == true, !alert.isUrgent { return }
         doneProjects = []
         present(alert, above: anchor)
-    }
-
-    private static func pose(for symbol: String) -> LimoPose {
-        switch symbol {
-        case "exclamationmark.triangle.fill", "snowflake": .pokesIce
-        case "hand.raised.fill": .handUp
-        case "checkmark.seal.fill", "checkmark.circle.fill": .celebrates
-        case "drop.fill", "drop": .takesSip
-        case "link", "questionmark.circle": .curious
-        case "gauge.with.dots.needle.67percent", "gauge.high": .checksGauge
-        default: .saysHi
-        }
     }
 
     private func present(_ alert: LimoAlert, above anchor: NSRect?, keepsDone: Bool = false) {

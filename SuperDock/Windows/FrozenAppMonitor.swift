@@ -5,6 +5,8 @@ import AppKit
 final class FrozenAppMonitor {
     private static let interval: TimeInterval = 5
     private nonisolated static let timeout: Float = 0.5
+    /// How long an app has failed to answer when it's reported: its first missed ping was this long before the last.
+    static let secondsUnresponsive = Int(interval) * (FreezeCounter.threshold - 1)
 
     /// Called once per app when it becomes frozen.
     var onFrozen: ((NSRunningApplication) -> Void)?

@@ -21,6 +21,55 @@ struct WeatherParsingTests {
         #expect([sunrise.hour, sunrise.minute] == [6, 34])
         #expect([sunset.hour, sunset.minute] == [15, 7])
     }
+
+    private func forecast(patchingHourly patch: [String: Any] = [:]) throws -> WeatherService.Report {
+        let data = try Data(contentsOf: fixtures.appending(path: "open-meteo-forecast.json"))
+        var json = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+        var hourly = try #require(json["hourly"] as? [String: Any])
+        hourly.merge(patch) { $1 }
+        json["hourly"] = hourly
+        return try WeatherService.report(from: JSONSerialization.data(withJSONObject: json), fetchedAt: Date(timeIntervalSince1970: 0))
+    }
+
+    private func utcDate(day: Int = 19, hour: Int, minute: Int = 0) throws -> Date {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = utc
+        return try #require(calendar.date(from: DateComponents(year: 2026, month: 11, day: day, hour: hour, minute: minute)))
+    }
+
+    @Test func parsesHoursInThePlacesZone() throws {
+        let report = try forecast()
+        // The fixture's hourly block only has rain chances, like responses recorded before temperatures were requested.
+        #expect(report.hours.count == 3)
+        #expect(report.hours[0] == .init(date: try utcDate(hour: 12), temperature: nil, weatherCode: nil, rainChance: 83))
+        #expect(report.hours.map(\.rainChance) == [83, 100, 98])
+        #expect(report.timeZone.secondsFromGMT() == 3600)
+    }
+
+    @Test func hourlyNullsStayNilAndShortArraysDontShift() throws {
+        let report = try forecast(patchingHourly: ["temperature_2m": [9.5, NSNull(), 8.0], "weather_code": [61, 80]])
+        #expect(report.hours.map(\.temperature) == [9.5, nil, 8.0])
+        #expect(report.hours.map(\.weatherCode) == [61, 80, nil])
+    }
+
+    @Test func dayIsBetweenSunriseAndSunsetOnAnyDay() throws {
+        var report = try forecast()   // sunrise 06:34 UTC, sunset 15:07 UTC
+        #expect(report.isDay(at: try utcDate(hour: 12)))
+        #expect(!report.isDay(at: try utcDate(hour: 6, minute: 30)))
+        #expect(report.isDay(at: try utcDate(hour: 6, minute: 40)))
+        #expect(!report.isDay(at: try utcDate(hour: 20)))
+        // Hourly and tomorrow's entries compare by time of day against today's sun times.
+        #expect(report.isDay(at: try utcDate(day: 20, hour: 10)))
+        #expect(!report.isDay(at: try utcDate(day: 20, hour: 22)))
+        report.sunrise = nil
+        #expect(report.isDay(at: try utcDate(hour: 22)))
+    }
+
+    @Test(arguments: [(0.0, "N"), (22.4, "N"), (22.6, "NE"), (90, "E"), (180, "S"), (225, "SW"), (337.4, "NW"),
+                      (337.6, "N"), (359.9, "N"), (360, "N"), (405, "NE"), (-90, "W")] as [(Double, String)])
+    func compass(degrees: Double, name: String) {
+        #expect(WeatherService.compass(degrees) == name)
+    }
 }
 
 struct TimeMathTests {

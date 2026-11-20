@@ -95,7 +95,7 @@ private struct PeekContent: View {
 
     var body: some View {
         HStack(spacing: 9) {
-            LimoCatch().frame(width: 30, height: 30)
+            LimoFigure(pose: .catchesIt).frame(width: 34, height: 34)
             if let item {
                 chip(item)
                 Text("copied").tileStyle(.detail)
@@ -140,26 +140,5 @@ private struct PeekContent: View {
         case .text: String(item.summary.prefix(40))
         case .color, .image, .file: item.summary
         }
-    }
-}
-
-/// Limo with a little paper card in its arms.
-private struct LimoCatch: View {
-    var body: some View {
-        LimoFace(snoring: false)
-            .overlay(alignment: .top) {
-                RoundedRectangle(cornerRadius: 2, style: .continuous)
-                    .fill(.white)
-                    .overlay(alignment: .top) {
-                        VStack(spacing: 1.5) {
-                            ForEach(0..<3, id: \.self) { _ in Capsule().fill(Palette.ink.opacity(0.35)).frame(height: 1) }
-                        }
-                        .padding(2.5)
-                    }
-                    .frame(width: 13, height: 10)
-                    .rotationEffect(.degrees(-10))
-                    .offset(x: -2, y: -5)
-            }
-            .accessibilityHidden(true)
     }
 }

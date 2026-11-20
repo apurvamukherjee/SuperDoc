@@ -143,7 +143,7 @@ private struct StopwatchTile: View {
     }
 
     private func face(at date: Date) -> StopwatchFace {
-        let lap = StopwatchFace.format(lastLap)
+        let lap = StopwatchText.format(lastLap)
         return StopwatchFace(elapsed: elapsed(at: date), isRunning: start > 0,
                              lastLap: laps > 0 ? String(localized: "Lap \(laps) · \(lap.main)\(lap.fraction)") : nil,
                              onToggle: toggle, onLap: takeLap, onReset: reset)
@@ -242,20 +242,6 @@ private struct QuickNoteTile: View {
     }
 }
 
-private struct LegacyNoteTile: View {
-    @AppStorage("productivity.note.text") private var text = ""
-
-    var body: some View {
-        TextEditor(text: $text)
-            .font(.caption)
-            .scrollContentBackground(.hidden)
-            .overlay(alignment: .topLeading) {
-                if text.isEmpty { Text("Note…").font(.caption).foregroundStyle(.tertiary).padding(.leading, 5).allowsHitTesting(false) }
-            }
-            .accessibilityLabel("Quick note")
-    }
-}
-
 struct TodoWidget: SuperWidget {
     typealias Settings = NoSettings
     static let id = "productivity.todo"
@@ -316,56 +302,6 @@ private struct TodoWidgetTile: View {
     }
 
     private func save(_ items: [StoredTodo]) {
-        do {
-            stored = try JSONEncoder().encode(items)
-        } catch {
-            log.error("Couldn't save to-dos: \(error)")
-        }
-    }
-}
-
-private struct LegacyTodoTile: View {
-    struct Item: Codable, Identifiable, Equatable {
-        var id = UUID()
-        var title: String
-    }
-
-    let size: TileSize
-    @AppStorage("productivity.todo.items") private var stored = Data()
-    @State private var draft = ""
-
-    private var items: [Item] {
-        guard !stored.isEmpty else { return [] }   // first use
-        do {
-            return try JSONDecoder().decode([Item].self, from: stored)
-        } catch {
-            log.error("To-do list unreadable: \(error)")
-            return []
-        }
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            ForEach(items.prefix(size == .medium ? 2 : 3)) { item in
-                Button { save(items.filter { $0.id != item.id }) } label: {
-                    Label(item.title, systemImage: "circle").font(.caption2).lineLimit(1)
-                }
-                .buttonStyle(.plain)
-                .help("Tap to complete")
-            }
-            TextField("Add a task", text: $draft)
-                .textFieldStyle(.plain).font(.caption2)
-                .onSubmit {
-                    let title = draft.trimmingCharacters(in: .whitespaces)
-                    guard !title.isEmpty else { return }
-                    save(items + [Item(title: title)])
-                    draft = ""
-                }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private func save(_ items: [Item]) {
         do {
             stored = try JSONEncoder().encode(items)
         } catch {
