@@ -12,7 +12,21 @@ enum Onboarding {
     static var isNeeded: Bool { !UserDefaults.standard.bool(forKey: doneKey) }
 
     static func show() {
-        let hosting = NSHostingView(rootView: OnboardingView(onFinish: finish))
+        present(OnboardingView(onFinish: finish))
+    }
+
+    /// After onboarding, a lost Accessibility grant (every ad-hoc-signed update loses it) gets the same Paper step
+    /// on its own, which closes itself once access is back.
+    static func showAccessibilityIfNeeded() {
+        guard !AXIsProcessTrusted() else { return }
+        present(OnboardingView(step: .accessibility, onAccessGranted: {
+            window?.close()
+            window = nil
+        }, onFinish: { _ in }))
+    }
+
+    private static func present(_ view: OnboardingView) {
+        let hosting = NSHostingView(rootView: view)
         // No size constraints from SwiftUI, or AppKit refuses the shrink-into-the-bar frame at the end.
         hosting.sizingOptions = []
         let window = NSWindow(contentRect: NSRect(origin: .zero, size: OnboardingTheme.windowSize),

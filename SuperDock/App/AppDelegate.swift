@@ -19,7 +19,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         quitCleanlyOnSIGTERM()
 
         // First launch gets the full welcome flow (which includes Accessibility); later launches only re-ask if access was lost.
-        if Onboarding.isNeeded { Onboarding.show() } else { Permissions.showAccessibilityOnboardingIfNeeded() }
+        if Onboarding.isNeeded { Onboarding.show() } else { Onboarding.showAccessibilityIfNeeded() }
         // Created even without access: the tracker keeps retrying, so the bar appears as soon as access is granted.
         let tracker = NativeDockTracker()
         let limo = LimoController()

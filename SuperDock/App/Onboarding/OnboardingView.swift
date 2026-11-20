@@ -77,6 +77,9 @@ enum StarterSet: String, CaseIterable, Identifiable {
 struct OnboardingView: View {
     var still = false
     let onFinish: (StarterSet) -> Void
+    /// Set when only the Accessibility step is shown (the grant was lost after onboarding, e.g. by an update that
+    /// changed the app's signature); called once access is back instead of moving on to the starter set.
+    var onAccessGranted: (() -> Void)?
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var step: OnboardingStep
@@ -90,13 +93,15 @@ struct OnboardingView: View {
 
     /// `still` renders a settled frame (gallery): no entrance, no poll, drawn window chrome.
     init(step: OnboardingStep = .welcome, position: BarPosition = BarPrefs.position, starter: StarterSet = .developer,
-         trusted: Bool = AXIsProcessTrusted(), still: Bool = false, onFinish: @escaping (StarterSet) -> Void) {
+         trusted: Bool = AXIsProcessTrusted(), still: Bool = false, onAccessGranted: (() -> Void)? = nil,
+         onFinish: @escaping (StarterSet) -> Void) {
         _step = State(initialValue: step)
         _position = State(initialValue: position)
         _starter = State(initialValue: starter)
         _trusted = State(initialValue: trusted)
         _entered = State(initialValue: still)
         self.still = still
+        self.onAccessGranted = onAccessGranted
         self.onFinish = onFinish
     }
 
@@ -134,7 +139,7 @@ struct OnboardingView: View {
 
     private var footer: some View {
         HStack(spacing: 8) {
-            PageDots(current: step.rawValue, count: OnboardingStep.allCases.count)
+            if onAccessGranted == nil { PageDots(current: step.rawValue, count: OnboardingStep.allCases.count) }
             Spacer()
             if step == .placement {
                 Button(String(localized: "Back")) { go(to: .welcome) }
@@ -155,7 +160,7 @@ struct OnboardingView: View {
         let (title, action): (String, () -> Void) = switch step {
         case .welcome: (String(localized: "Get started"), { go(to: .placement) })
         case .placement: (String(localized: "Continue"), { go(to: .accessibility) })
-        case .accessibility where trusted: (String(localized: "Continue"), { go(to: .starter) })
+        case .accessibility where trusted: (String(localized: "Continue"), afterAccess)
         case .accessibility: (String(localized: "Open System Settings"), openAccessibilitySettings)
         case .starter: (String(localized: "Finish"), finish)
         }
@@ -190,6 +195,10 @@ struct OnboardingView: View {
         NSWorkspace.shared.open(url)
     }
 
+    private func afterAccess() {
+        if let onAccessGranted { onAccessGranted() } else { go(to: .starter) }
+    }
+
     private func finish() {
         withAnimation(animation(Motion.pop)) { celebrating = true }
         onFinish(starter)
@@ -206,7 +215,7 @@ struct OnboardingView: View {
             }
             // Long enough to see the check and Limo pocket the key.
             try await Task.sleep(for: .seconds(1.2))
-            go(to: .starter)
+            afterAccess()
         } catch {
             return   // Task.sleep only throws on cancellation: the step changed or the window closed.
         }
