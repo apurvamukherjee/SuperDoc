@@ -5,6 +5,14 @@ struct LimoFace: View {
     var snoring = true
     var pose: LimoPose = .naps
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.tile) private var tile
+
+    /// Outside a tile (popovers, panels) `\.tile` is only the default glass-dark context, so fall back to the solid
+    /// tokens for the current appearance instead of drawing a dark-style "z" in light mode.
+    private var surface: SurfaceTokens {
+        let isDark = colorScheme == .dark
+        return tile.surface.isDark == isDark ? tile.surface : SurfaceTokens(isDark ? .solidDark : .solidLight)
+    }
 
     var body: some View {
         LimoFigure(pose: pose, outlined: colorScheme == .dark, faceOnly: true)
@@ -15,7 +23,7 @@ struct LimoFace: View {
     }
 
     private var snore: some View {
-        Text("z").font(.system(size: 7, weight: .heavy, design: .rounded)).foregroundStyle(.secondary).offset(x: 9, y: -8)
+        Text("z").font(.system(size: 7, weight: .heavy, design: .rounded)).foregroundStyle(surface.secondary).offset(x: 9, y: -8)
     }
 }
 

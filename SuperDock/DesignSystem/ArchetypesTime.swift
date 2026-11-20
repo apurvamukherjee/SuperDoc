@@ -44,21 +44,23 @@ struct CalendarTile: View {
         }
     }
 
-    private var leaf: some View {
-        VStack(spacing: 0) {
+    @ViewBuilder private var leaf: some View {
+        let page = VStack(spacing: 0) {
             Text(date.formatted(.dateTime.weekday(.abbreviated)))
                 .tileStyle(.label, color: .white)
                 .frame(maxWidth: .infinity)
-                .padding(.top, tile.isCompact ? tile.padding : 0)
-                .padding(.vertical, 3 * tile.scale)
+                .padding(.vertical, 4 * tile.scale)
                 .background(Palette.today)
             Text("\(calendar.component(.day, from: date))").tileStyle(.display)
                 .frame(maxHeight: .infinity)
         }
-        .padding(tile.isCompact ? -tile.padding : 0)
-        .clipShape(RoundedRectangle(cornerRadius: tile.isCompact ? 0 : tile.innerRadius, style: .continuous))
-        .background(tile.isCompact ? .clear : tile.surface.chipFill,
-                    in: RoundedRectangle(cornerRadius: tile.innerRadius, style: .continuous))
+        if tile.isCompact {
+            // The whole tile is the leaf, so the band runs to the tile's edges; the chrome's corners clip it.
+            page.tileBleed(.all)
+        } else {
+            let shape = RoundedRectangle(cornerRadius: tile.innerRadius, style: .continuous)
+            page.clipShape(shape).background(tile.surface.chipFill, in: shape)
+        }
     }
 
     private var weekStrip: some View {
